@@ -10,8 +10,10 @@ class SerialConnection : public Connection
 public:
   SerialConnection(std::string_view port);
 
-  void write(std::span<char> buffer) override;
+  void write(std::span<const char> buffer) override;
 
-  auto read_line() -> std::string override;
-  auto read(int n) -> std::string override;
+  auto read_line(int timeout_ms = 1000) -> std::pair<std::string, bool> override;
+  auto read(int bytes_to_read, int timeout_ms = 1000) -> std::string override;
+
+  void flush_rx_buffers() override;
 };

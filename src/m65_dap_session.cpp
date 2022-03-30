@@ -1,4 +1,5 @@
 #include "m65_dap_session.h"
+#include "dap_logger.h"
 
 using namespace std::chrono_literals;
 
@@ -14,6 +15,7 @@ struct M65LaunchRequest : LaunchRequest
 
   optional<string> program;
   optional<string> serialPort;
+  optional<dap::boolean> resetBeforeRun;
 };
 
 DAP_DECLARE_STRUCT_TYPEINFO(M65LaunchRequest);
@@ -23,19 +25,27 @@ DAP_IMPLEMENT_STRUCT_TYPEINFO(M65LaunchRequest,
   DAP_FIELD(restart, "__restart"),
   DAP_FIELD(noDebug, "noDebug"),
   DAP_FIELD(program, "program"),
-  DAP_FIELD(serialPort, "serialPort"));
+  DAP_FIELD(serialPort, "serialPort"),
+  DAP_FIELD(resetBeforeRun, "resetBeforeRun"));
 
 } // namespace dap
 
+namespace
+{
 
+  const int thread_id = 1;
+
+}
 
 M65DapSession::M65DapSession(const std::filesystem::path& log_file_path)
   : session_(dap::Session::create())
 {
   if (!log_file_path.empty())
   {
-    log_file_ = dap::file(log_file_path.native().c_str());
+    DapLogger::instance().open_file(log_file_path);
   }
+
+  DapLogger::instance().register_session(session_.get());
 
   register_error_handler();
   register_init_request_handler();
@@ -48,9 +58,10 @@ void M65DapSession::run()
   std::shared_ptr<dap::Reader> in = dap::file(stdin, false);
   std::shared_ptr<dap::Writer> out = dap::file(stdout, false);
 
-  if (log_file_)
+  auto log_file = DapLogger::instance().get_file();
+  if (log_file)
   {
-    session_->bind(spy(in, log_file_), spy(out, log_file_));
+    session_->bind(spy(in, log_file), spy(out, log_file));
   }
   else
   {
@@ -65,11 +76,7 @@ void M65DapSession::register_error_handler()
   auto errorHandler =
     [&](const char* msg)
     {
-      if (log_file_)
-      {
-        dap::writef(log_file_, "dap::Session error: %s\n", msg);
-        log_file_->close();
-      }
+      DapLogger::write_log_file(fmt::format("dap::Session error: {}\n", msg));
       exit_promise_.set_value();
     };
 
@@ -95,8 +102,13 @@ void M65DapSession::register_init_request_handler()
   );
 
   session_->registerHandler(
-    [&](const dap::ConfigurationDoneRequest&)
+    [&](const dap::ConfigurationDoneRequest&) -> dap::ResponseOrError<dap::ConfigurationDoneResponse>
     {
+      if (!debugger_)
+      {
+        return dap::Error("Debugger not initialized");
+      }
+      debugger_->run_target();
       return dap::ConfigurationDoneResponse();
     }
   );
@@ -131,10 +143,15 @@ void M65DapSession::register_launch_request_handler()
       {
         return dap::Error("Launch request needs definition of 'serialPort'");
       }
+      bool reset_before_run = false;
+      if (req.resetBeforeRun.has_value())
+      {
+        reset_before_run = req.resetBeforeRun.value();
+      }
 
       try
       {
-        debugger_ = std::make_unique<M65Debugger>(req.serialPort.value());
+        debugger_ = std::make_unique<M65Debugger>(req.serialPort.value(), reset_before_run);
       }
       catch (...)
       {
@@ -167,7 +184,7 @@ void M65DapSession::register_threads_request_handler()
     [](const dap::ThreadsRequest&) {
       dap::ThreadsResponse response;
       dap::Thread thread;
-      thread.id = 1;
+      thread.id = thread_id;
       thread.name = "MEGA65Thread";
       response.threads.push_back(thread);
       return response;

@@ -1,5 +1,8 @@
 add_executable(m65dbg_adapter
     connection.h
+    dap_logger.h
+    dap_logger.cpp
+    duration.h
     m65_dap_session.cpp
     m65_dap_session.h
     m65_debugger.cpp

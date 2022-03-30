@@ -9,7 +9,6 @@ class M65DapSession
 {
   std::unique_ptr<M65Debugger> debugger_;
   std::unique_ptr<dap::Session> session_;
-  std::shared_ptr<dap::Writer> log_file_;
   std::promise<void> exit_promise_;
 
 public:

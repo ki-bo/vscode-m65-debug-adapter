@@ -1,4 +1,6 @@
 #include "serial_connection.h"
+#include "duration.h"
+#include "dap_logger.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -40,11 +42,24 @@ SerialConnection::SerialConnection(std::string_view port)
   }
 #endif
 
+  flush_rx_buffers();
 }
 
-void SerialConnection::write(std::span<char> buffer)
+void SerialConnection::write(std::span<const char> buffer)
 {
   int written = 0;
+
+  bool is_ascii = std::find_if(buffer.begin(), buffer.end(), [](const char c) { return static_cast<int>(c) <= 0; }) == buffer.end();
+
+  if (is_ascii)
+  {
+    std::string_view debug_str(buffer.data(), buffer.size());
+    DapLogger::debug_out(fmt::format("-> \"{}\"\n", debug_str));
+  }
+  else
+  {
+    DapLogger::debug_out(fmt::format("-> binary data (size {0:}/${0:X} bytes)\n", buffer.size_bytes()));
+  }
 
   while (written < buffer.size())
   {
@@ -65,35 +80,85 @@ void SerialConnection::write(std::span<char> buffer)
   }
 }
 
-auto SerialConnection::read_line() -> std::string
+auto SerialConnection::read_line(int timeout_ms) -> std::pair<std::string, bool>
 {
-  /*std::size_t pos;
+  std::size_t pos;
   char tmp[1024];
+  std::fill(tmp, tmp + 1024, 0xcb);
 
-  while ((pos = buffer_.find_first_of('\n')) == std::string::npos)
+  Duration t;
+
+  while ((pos = buffer_.find_first_of("\r\n")) == std::string::npos)
   {
     auto read_bytes = ::read(fd_, tmp, 1024);
 
     if (read_bytes < 0)
     {
-      fmt::print("Error: {}\n", strerror(errno));
+      DapLogger::debug_out(fmt::format("Error: {}\n", strerror(errno)));
     }
-    
-    if (read_bytes > 0)
+    else if (read_bytes > 0)
     {
       buffer_.append(tmp, read_bytes);
+    }
+    else
+    {
+      if (t.elapsed_ms() > timeout_ms)
+      {
+        DapLogger::debug_out("Timeout in read_line()\n");
+        return { {}, true };
+      }
+      std::this_thread::sleep_for(1ms);
     }
   }
 
   auto line = buffer_.substr(0, pos);
-  buffer_.erase(0, pos + 1);
-  return line;*/
-  return {};
+  buffer_.erase(0, pos + 2);
+  if (line.empty())
+  {
+    if (!buffer_.empty() && buffer_[0] == '.')
+    {
+      // Prompt found (empty line following by '.')
+      buffer_.erase(0, 1);
+      DapLogger::debug_out("Prompt (.) found\n");
+      return { ".", false };
+    }
+  }
+
+  DapLogger::debug_out(fmt::format("<- \"{}\"\n", line));
+  return { line, false };
 }
 
-auto SerialConnection::read(int n) -> std::string
+auto SerialConnection::read(int bytes_to_read, int timeout_ms) -> std::string
 {
-  return {};
+  Duration t;
+  int sum = 0;
+  int n = 0;
+  std::string tmp;
+  tmp.resize(bytes_to_read);
+
+  do
+  {
+    n = ::read(fd_, tmp.data() + sum, bytes_to_read - sum);
+    sum += n;
+  } while (sum < bytes_to_read && t.elapsed_ms() < 2000);
+
+  if (sum < bytes_to_read)
+  {
+    tmp.resize(sum);
+  }
+
+  return tmp;
+}
+
+void SerialConnection::flush_rx_buffers()
+{
+  // Do a dummy read of 64K to flush the buffer
+  auto dummy_str = read(65536, 100);
+  if (!dummy_str.empty())
+  {
+    buffer_.clear();
+    DapLogger::debug_out(fmt::format("Flushing rx buffer ({0:}/${0:X} bytes)\n", dummy_str.size()));
+  }
 }
 
 
