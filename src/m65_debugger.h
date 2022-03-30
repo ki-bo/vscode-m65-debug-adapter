@@ -5,10 +5,15 @@
 class M65Debugger
 {
   std::unique_ptr<Connection> conn_;
+  bool reset_on_disconnect_ {true};
 
 public:
-  M65Debugger(std::string_view serial_port_device, bool do_reset = false);
+  M65Debugger(std::string_view serial_port_device, 
+              bool reset_on_run = false,
+              bool reset_on_disconnect = true);
 
+  ~M65Debugger();
+  
   void set_target(const std::filesystem::path& prg_path);
   void run_target();
 

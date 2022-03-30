@@ -4,11 +4,23 @@
 
 using namespace std::chrono_literals;
 
-M65Debugger::M65Debugger(std::string_view serial_port_device, bool do_reset) :
-  conn_(std::make_unique<SerialConnection>(serial_port_device))
+M65Debugger::M65Debugger(std::string_view serial_port_device, 
+                         bool reset_on_run,
+                         bool reset_on_disconnect) :
+  conn_(std::make_unique<SerialConnection>(serial_port_device)),
+  reset_on_disconnect_(reset_on_disconnect)
 {
   sync_connection();
-  if (do_reset)
+  if (reset_on_run)
+  {
+    reset_target();
+    std::this_thread::sleep_for(2s);
+  }
+}
+
+M65Debugger::~M65Debugger()
+{
+  if (reset_on_disconnect_)
   {
     reset_target();
   }
@@ -111,7 +123,6 @@ void M65Debugger::reset_target()
   conn_->flush_rx_buffers();
 
   sync_connection();
-  std::this_thread::sleep_for(2s);
 }
 
 void M65Debugger::simulate_keypresses(std::string_view keys)

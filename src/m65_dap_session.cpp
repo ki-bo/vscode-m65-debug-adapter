@@ -16,6 +16,7 @@ struct M65LaunchRequest : LaunchRequest
   optional<string> program;
   optional<string> serialPort;
   optional<dap::boolean> resetBeforeRun;
+  optional<dap::boolean> resetAfterDisconnect;
 };
 
 DAP_DECLARE_STRUCT_TYPEINFO(M65LaunchRequest);
@@ -26,7 +27,8 @@ DAP_IMPLEMENT_STRUCT_TYPEINFO(M65LaunchRequest,
   DAP_FIELD(noDebug, "noDebug"),
   DAP_FIELD(program, "program"),
   DAP_FIELD(serialPort, "serialPort"),
-  DAP_FIELD(resetBeforeRun, "resetBeforeRun"));
+  DAP_FIELD(resetBeforeRun, "resetBeforeRun"),
+  DAP_FIELD(resetAfterDisconnect, "resetAfterDisconnect"));
 
 } // namespace dap
 
@@ -143,15 +145,12 @@ void M65DapSession::register_launch_request_handler()
       {
         return dap::Error("Launch request needs definition of 'serialPort'");
       }
-      bool reset_before_run = false;
-      if (req.resetBeforeRun.has_value())
-      {
-        reset_before_run = req.resetBeforeRun.value();
-      }
+      dap::boolean reset_before_run = req.resetBeforeRun.has_value() ? req.resetBeforeRun.value() : dap::boolean(false);
+      dap::boolean reset_after_disconnect = req.resetAfterDisconnect.has_value() ? req.resetAfterDisconnect.value() : dap::boolean(true);
 
       try
       {
-        debugger_ = std::make_unique<M65Debugger>(req.serialPort.value(), reset_before_run);
+        debugger_ = std::make_unique<M65Debugger>(req.serialPort.value(), reset_before_run, reset_after_disconnect);
       }
       catch (...)
       {
