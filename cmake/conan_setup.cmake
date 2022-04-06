@@ -14,6 +14,7 @@ conan_cmake_configure(REQUIRES
                         fmt/8.1.1 
                         nlohmann_json/3.10.5
                         serial/1.2.1
+                        tinyxml2/9.0.0
                       GENERATORS 
                         cmake_find_package)
 

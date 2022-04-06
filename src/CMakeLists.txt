@@ -1,8 +1,11 @@
 add_executable(m65dbg_adapter
+    c64_debugger_data.cpp
+    c64_debugger_data.h
     connection.h
     dap_logger.h
     dap_logger.cpp
     duration.h
+    exception.h
     m65_dap_session.cpp
     m65_dap_session.h
     m65_debugger.cpp
@@ -10,6 +13,12 @@ add_executable(m65dbg_adapter
     main.cpp
     serial_connection.h
     serial_connection.cpp
+    unix_connection.cpp
+    unix_connection.h
+    unix_domain_socket_connection.cpp
+    unix_domain_socket_connection.h
+    util.cpp
+    util.h
 )
 
 target_precompile_headers(m65dbg_adapter
@@ -19,9 +28,11 @@ PUBLIC
 
 find_package(fmt)
 find_package(serial)
+find_package(tinyxml2)
 
 target_link_libraries(m65dbg_adapter 
     fmt::fmt
     cppdap
     serial::serial
+    tinyxml2::tinyxml2
 )

@@ -13,6 +13,7 @@
 #include <memory>
 #include <span>
 #include <stdexcept>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -20,3 +21,6 @@
 #include <vector>
 
 #include <fmt/core.h>
+
+#include "exception.h"
+#include "util.h"

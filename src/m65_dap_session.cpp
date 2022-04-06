@@ -37,6 +37,8 @@ namespace
 
   const int thread_id = 1;
 
+  const int var_registers_id = 1;
+
 }
 
 M65DapSession::M65DapSession(const std::filesystem::path& log_file_path)
@@ -50,9 +52,7 @@ M65DapSession::M65DapSession(const std::filesystem::path& log_file_path)
   DapLogger::instance().register_session(session_.get());
 
   register_error_handler();
-  register_init_request_handler();
-  register_launch_request_handler();
-  register_threads_request_handler();
+  register_request_handlers();
 }
 
 void M65DapSession::run()
@@ -70,7 +70,34 @@ void M65DapSession::run()
     session_->bind(in, out);
   }
 
-  exit_promise_.get_future().wait();
+  auto exit_future = exit_promise_.get_future();
+  while (exit_future.wait_for(100ms) == std::future_status::timeout) {
+    if (debugger_) {
+      debugger_->do_event_processing();
+    }
+  }
+  
+}
+
+void M65DapSession::handle_debugger_stopped(M65Debugger::StoppedReason reason)
+{
+  dap::StoppedEvent event;
+  switch (reason)
+  {
+    case M65Debugger::StoppedReason::Pause:
+      event.reason = "pause";
+      break;
+    case M65Debugger::StoppedReason::Step:
+      event.reason = "step";
+      break;
+    case M65Debugger::StoppedReason::Breakpoint:
+      event.reason = "breakpoint";
+      break;
+    default:
+      throw std::logic_error("Unimplemented stopped reason");
+  }
+  event.threadId = thread_id;
+  session_->send(event);
 }
 
 void M65DapSession::register_error_handler()
@@ -85,13 +112,17 @@ void M65DapSession::register_error_handler()
   session_->onError(errorHandler);
 }
 
-void M65DapSession::register_init_request_handler()
+void M65DapSession::register_request_handlers()
 {
+  
   session_->registerHandler(
-    [](const dap::InitializeRequest& req)
+    [&](const dap::InitializeRequest& req)
     {
+      client_supports_variable_type_ = req.supportsVariableType.value(false);
+
       dap::InitializeResponse res;
       res.supportsConfigurationDoneRequest = true;
+      res.supportsValueFormattingOptions = true;
       return res;
     }
   );
@@ -130,10 +161,7 @@ void M65DapSession::register_init_request_handler()
       exit_promise_.set_value();
     }
   );
-}
 
-void M65DapSession::register_launch_request_handler()
-{
   session_->registerHandler(
     [&](const dap::M65LaunchRequest& req) -> dap::ResponseOrError<dap::LaunchResponse>
     {
@@ -150,11 +178,11 @@ void M65DapSession::register_launch_request_handler()
 
       try
       {
-        debugger_ = std::make_unique<M65Debugger>(req.serialPort.value(), reset_before_run, reset_after_disconnect);
+        debugger_ = std::make_unique<M65Debugger>(req.serialPort.value(), this, reset_before_run, reset_after_disconnect);
       }
-      catch (...)
+      catch (const std::exception& e)
       {
-        return dap::Error("Can't open serial connection on device '%s'", req.serialPort.value().c_str());
+        return dap::Error(fmt::format("Can't open connection to '{}'\n{}", req.serialPort.value(), e.what()));
       }
 
       if (!std::filesystem::exists(req.program.value()))
@@ -175,10 +203,7 @@ void M65DapSession::register_launch_request_handler()
       return res;
     }
   );
-}
 
-void M65DapSession::register_threads_request_handler()
-{
   session_->registerHandler(
     [](const dap::ThreadsRequest&) {
       dap::ThreadsResponse response;
@@ -189,5 +214,169 @@ void M65DapSession::register_threads_request_handler()
       return response;
     }
   );
-}
 
+  session_->registerHandler(
+    [&](const dap::SetBreakpointsRequest& req) {
+      dap::SetBreakpointsResponse response;
+      if (!req.breakpoints.has_value()) {
+        return response;
+      }
+      
+      const std::filesystem::path src_path = req.source.path.value("");
+      const auto& breakpoints = req.breakpoints.value();
+      for (const auto& b : breakpoints) {
+        dap::Breakpoint result;
+        
+        result.line = b.line;
+        dap::Source src;
+        src.path = src_path;
+        result.source = src;
+        if (debugger_->set_breakpoint(src_path, result.line.value())) {
+          result.verified = true;
+        } else {
+          result.verified = false;
+        }
+        response.breakpoints.push_back(result);
+      }
+
+      return response;
+    }
+  );
+
+  session_->registerHandler(
+    [&](const dap::PauseRequest&) {
+      assert(debugger_);
+      debugger_->pause();
+      return dap::PauseResponse();
+    }
+  );
+
+  session_->registerHandler(
+    [&](const dap::ContinueRequest&) {
+      assert(debugger_);
+      debugger_->cont();
+      return dap::ContinueResponse();
+    }
+  );
+
+  session_->registerHandler(
+    [&](const dap::NextRequest&) {
+      assert(debugger_);
+      debugger_->next();
+      return dap::NextResponse();
+    }
+  );
+
+  session_->registerHandler(
+    [&](const dap::StackTraceRequest&) {
+      assert(debugger_);
+      auto src_pos = debugger_->get_current_source_position();
+
+      dap::StackTraceResponse response;
+      response.totalFrames = 1;
+      dap::StackFrame frame;
+      frame.id = 1;
+      frame.name = fmt::format("{}::{}", src_pos.segment, src_pos.block);
+      dap::Source src;
+      src.sourceReference = 0;
+      
+      std::filesystem::path src_path {src_pos.src_path};
+      src.name = src_pos.src_path.filename();
+      src.path = src_pos.src_path.native();
+      frame.source = src;
+      frame.line = src_pos.line;
+
+      response.stackFrames.push_back(frame);
+      return response;
+    }
+  );
+
+  session_->registerHandler(
+    [](const dap::SourceRequest& req) {
+      if (req.sourceReference != 0)
+      {
+        throw std::invalid_argument("Source reference != 0 not supported");
+      }
+      dap::SourceResponse response;
+      response.content = "";
+      return response;
+    }
+  );
+
+  session_->registerHandler(
+    [](const dap::ScopesRequest& req) {
+      if (req.frameId != 1)
+      {
+        throw std::invalid_argument("Invalid scope id requested");
+      }
+
+      dap::ScopesResponse response;
+      dap::Scope registers_scope;
+      registers_scope.name = "Registers";
+      registers_scope.presentationHint = "registers";
+      registers_scope.variablesReference = var_registers_id;
+      response.scopes.push_back(registers_scope);
+      return response;
+    }
+  );
+
+  session_->registerHandler(
+    [&](const dap::VariablesRequest& req) {
+      dap::VariablesResponse response;
+
+      std::string format_str_byte {"0x{:0>2X}"};
+      std::string format_str_word {"0x{:0>4X}"};
+      /*if (req.format.has_value() && req.format.value().hex.value(false))
+      {
+        format_str = "${:X}";
+      }
+      else
+      {
+        format_str = "{:d}";
+      }*/
+
+      if (req.variablesReference == var_registers_id)
+      {
+        auto reg = debugger_->get_registers();
+        dap::Variable v;
+        if (client_supports_variable_type_)
+        {
+          v.type = "Byte";
+        }
+        v.name = "A";
+        v.value = fmt::format(format_str_byte, reg.a);
+        response.variables.push_back(v);
+        v.name = "X";
+        v.value = fmt::format(format_str_byte, reg.x);
+        response.variables.push_back(v);
+        v.name = "Y";
+        v.value = fmt::format(format_str_byte, reg.y);
+        response.variables.push_back(v);
+        v.name = "Z";
+        v.value = fmt::format(format_str_byte, reg.z);
+        response.variables.push_back(v);
+        v.name = "BP";
+        v.value = fmt::format(format_str_byte, reg.b);
+        response.variables.push_back(v);
+
+        if (client_supports_variable_type_)
+        {
+          v.type = "Word";
+        }
+        v.name = "PC";
+        v.value = fmt::format(format_str_word, reg.pc);
+        response.variables.push_back(v);
+        v.name = "SP";
+        v.value = fmt::format(format_str_word, reg.sp);
+        response.variables.push_back(v);
+        
+        v.name = "FL";
+        v.type = "Flags";
+        v.value = fmt::format("0x{:0>2X} ({})", reg.flags, reg.flags_string);
+        response.variables.push_back(v);
+      }
+
+      return response;
+    }
+  );
+}
