@@ -66,8 +66,14 @@ public:
   };
 
 private:
+  using DebuggerTask = std::packaged_task<void()>;
+
   EventHandlerInterface* event_handler_ {nullptr};
   std::unique_ptr<Connection> conn_;
+  std::thread main_loop_thread_;
+  std::promise<void> main_loop_exit_signal_;
+  std::queue<DebuggerTask> debugger_tasks_;
+
   std::unique_ptr<C64DebuggerData> dbg_data_;
   bool is_xemu_ {false};
   bool reset_on_disconnect_ {true};
@@ -89,17 +95,28 @@ public:
   void pause();
   void cont();
   void next();
-  bool set_breakpoint(const std::filesystem::path& src_path, int line);
+  void set_breakpoint(const std::filesystem::path& src_path, int line);
   auto get_breakpoint() const -> const Breakpoint*;
   auto get_registers() -> Registers;
   auto get_pc() -> int;
   auto get_current_source_position() -> SourcePosition;
-  void do_event_processing();
 
 private:
+  void main_loop(std::future<void> future_exit_object);
+  void do_event_processing();
+  template<typename Func>
+  void run_task(Func f)
+  {
+    auto task = DebuggerTask(f);
+    auto fut = task.get_future();
+    debugger_tasks_.push(std::move(task));
+    fut.wait();
+  }
+
   void sync_connection();
   void reset_target();
   void update_registers();
+  auto update_registers(std::vector<std::string> lines) -> bool;
   
   void upload_prg_file(const std::filesystem::path& prg_path);
   void parse_debug_symbols(const std::filesystem::path& dbg_path);

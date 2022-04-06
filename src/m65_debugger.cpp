@@ -34,6 +34,8 @@ M65Debugger::M65Debugger(std::string_view serial_port_device,
     // make sure serial debugger is not stopped
     execute_command("t0\n");
   }
+
+  main_loop_thread_ = std::thread(&M65Debugger::main_loop, this, std::move(main_loop_exit_signal_.get_future()));
 }
 
 M65Debugger::~M65Debugger()
@@ -42,67 +44,85 @@ M65Debugger::~M65Debugger()
   {
     reset_target();
   }
+
+  main_loop_exit_signal_.set_value();
+  main_loop_thread_.join();
 }
 
 void M65Debugger::set_target(const std::filesystem::path& prg_path)
 {
-  upload_prg_file(prg_path);
+  run_task([&]() {
+    upload_prg_file(prg_path);
 
-  auto dbg_file = prg_path;
-  dbg_file.replace_extension("dbg");
-  parse_debug_symbols(dbg_file);
+    auto dbg_file = prg_path;
+    dbg_file.replace_extension("dbg");
+    parse_debug_symbols(dbg_file);
+  });
 }
 
 void M65Debugger::run_target()
 {
-  simulate_keypresses("RUN\r");
+  run_task([&]() {
+    simulate_keypresses("RUN\r");
+  });
 }
 
 void M65Debugger::pause()
 {
-  execute_command("t1\n");
-  stopped_ = true;
-  update_registers();
-  if (event_handler_)
-  {
-    event_handler_->handle_debugger_stopped(StoppedReason::Pause);
-  }
+  run_task([&]() {
+    execute_command("t1\n");
+    stopped_ = true;
+    update_registers();
+    if (event_handler_)
+    {
+      auto f = std::async(std::launch::async, &EventHandlerInterface::handle_debugger_stopped, event_handler_, StoppedReason::Pause);
+      f.wait();
+    }
+  });
 }
 
 void M65Debugger::cont()
 {
-  execute_command("t0\n");
-  stopped_ = false;
+  run_task([&]() {
+    execute_command("t0\n");
+    stopped_ = false;
+  });
 }
 
 void M65Debugger::next()
 {
-  throw_if<std::runtime_error>(!stopped_, "Debugger not in stopped state");
-  execute_command("\n");
-  update_registers();
-  if (event_handler_)
-  {
-    event_handler_->handle_debugger_stopped(StoppedReason::Step);
-  }
+  run_task([&]() {
+    throw_if<std::runtime_error>(!stopped_, "Debugger not in stopped state");
+    execute_command("\n");
+    update_registers();
+    if (event_handler_)
+    {
+      auto f = std::async(std::launch::async, &EventHandlerInterface::handle_debugger_stopped, event_handler_,StoppedReason::Step);
+      f.wait();
+    }
+  });
 }
 
-auto M65Debugger::set_breakpoint(const std::filesystem::path& src_path, int line) -> bool
+void M65Debugger::set_breakpoint(const std::filesystem::path& src_path, int line)
 {
-  if (!dbg_data_)
-    return false;
-  
-  auto dbg_block_entry = dbg_data_->eval_breakpoint_line(src_path, line);
-  if (!dbg_block_entry)
-    return false;
+  run_task([&]() {
+    if (!dbg_data_) {
+      throw std::runtime_error("Can't set breakpoint, no debug symbols loaded");
+    }
+    
+    auto dbg_block_entry = dbg_data_->eval_breakpoint_line(src_path, line);
+    if (!dbg_block_entry) {
+      throw std::runtime_error(fmt::format("Can't set breakpoint at {}:{}", src_path.native(), line));
+    }
 
-  Breakpoint b {
-    .src_path = src_path,
-    .line = dbg_block_entry->line1,
-    .pc = dbg_block_entry->start
-  };
-  execute_command(fmt::format("b{:X}\n", b.pc));
-  breakpoint_ = std::make_unique<Breakpoint>(std::move(b));
-  return true;
+    Breakpoint b {
+      .src_path = src_path,
+      .line = dbg_block_entry->line1,
+      .pc = dbg_block_entry->start
+    };
+    execute_command(fmt::format("b{:X}\n", b.pc));
+    breakpoint_ = std::make_unique<Breakpoint>(std::move(b));
+  });
 }
 
 auto M65Debugger::get_breakpoint() const -> const Breakpoint*
@@ -112,7 +132,6 @@ auto M65Debugger::get_breakpoint() const -> const Breakpoint*
 
 auto M65Debugger::get_registers() -> Registers
 {
-  throw_if<std::runtime_error>(!stopped_, "Debugger not in stopped state");
   return current_registers_;
 }
 
@@ -141,32 +160,37 @@ auto M65Debugger::get_current_source_position() -> SourcePosition
   return result;  
 }
 
+void M65Debugger::main_loop(std::future<void> future_exit_object)
+{
+  do {
+    if (!debugger_tasks_.empty()) {
+      auto& task = debugger_tasks_.front();
+      task();
+      debugger_tasks_.pop();
+    }
+
+    do_event_processing();
+  }
+  while (future_exit_object.wait_for(10ms) == std::future_status::timeout);
+}
+
 void M65Debugger::do_event_processing()
 {
-  std::lock_guard sl(read_mutex_);
   auto result = conn_->read(1, 10);
   if (result.empty() || result.front() != '!') {
     return;
   }
 
   auto lines = get_lines_until_prompt();
-  if (lines.size() < 3 || !lines[1].starts_with("PC ")) {
+  if (!update_registers(lines) || current_registers_.pc != breakpoint_->pc) {
     execute_command("t0\n");      
     return;
   }
-  std::istringstream sstr(lines[2]);
-  sstr >> std::hex;
-  int pc;
-  sstr >> pc;
-  if (pc != breakpoint_->pc) {
-    execute_command("t0\n");
-  }
 
   stopped_ = true;
-  update_registers();
-  if (event_handler_)
-  {
-    event_handler_->handle_debugger_stopped(StoppedReason::Breakpoint);
+  if (event_handler_) {
+    auto f = std::async(std::launch::async, &EventHandlerInterface::handle_debugger_stopped, event_handler_, StoppedReason::Breakpoint);
+    f.wait();
   }
 }
 
@@ -251,12 +275,28 @@ void M65Debugger::reset_target()
 void M65Debugger::update_registers()
 {
   auto lines = execute_command("r\n");
-  if (lines.size() < 2 || !lines[1].starts_with("PC   A  X  Y  Z  B  SP"))
-  {
+  if (!update_registers(lines)) {
     throw std::runtime_error("Unable to retrieve registers");
   }
+}
 
-  std::istringstream sstr(lines[2]);
+auto M65Debugger::update_registers(std::vector<std::string> lines) -> bool
+{
+  auto it = lines.begin();
+  for (; it != lines.end() && it->empty(); ++it);
+  if (it == lines.end()) {
+    return false;
+  } 
+
+  if (!it->starts_with("PC   A  X  Y  Z  B  SP")) {
+    return false;
+  }
+
+  if (++it == lines.end()) {
+    return false;
+  }
+
+  std::istringstream sstr(*it);
   sstr >> std::hex;
 
   sstr >> current_registers_.pc;
@@ -289,6 +329,8 @@ void M65Debugger::update_registers()
     }
     val >>= 1;
   }
+
+  return true;
 }
 
 void M65Debugger::upload_prg_file(const std::filesystem::path& prg_path)

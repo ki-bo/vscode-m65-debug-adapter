@@ -70,13 +70,7 @@ void M65DapSession::run()
     session_->bind(in, out);
   }
 
-  auto exit_future = exit_promise_.get_future();
-  while (exit_future.wait_for(100ms) == std::future_status::timeout) {
-    if (debugger_) {
-      debugger_->do_event_processing();
-    }
-  }
-  
+  exit_promise_.get_future().wait();
 }
 
 void M65DapSession::handle_debugger_stopped(M65Debugger::StoppedReason reason)
@@ -231,10 +225,16 @@ void M65DapSession::register_request_handlers()
         dap::Source src;
         src.path = src_path;
         result.source = src;
-        if (debugger_->set_breakpoint(src_path, result.line.value())) {
-          result.verified = true;
-        } else {
+        if (debugger_->get_breakpoint() != nullptr) {
           result.verified = false;
+        } else {
+          result.verified = true;
+          try {
+            debugger_->set_breakpoint(src_path, result.line.value());
+          }
+          catch(...) {
+            result.verified = false;
+          }
         }
         response.breakpoints.push_back(result);
       }

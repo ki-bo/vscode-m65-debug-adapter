@@ -11,6 +11,7 @@
 #include <iterator>
 #include <map>
 #include <memory>
+#include <queue>
 #include <span>
 #include <stdexcept>
 #include <sstream>
