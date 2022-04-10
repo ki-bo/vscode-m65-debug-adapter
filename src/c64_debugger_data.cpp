@@ -23,6 +23,7 @@ C64DebuggerData::C64DebuggerData(const std::filesystem::path& dbg_file)
 
   parse_file_list(root);
   parse_segments(root);
+  parse_labels(root);
 }
 
 auto C64DebuggerData::get_block_entry(int addr, 
@@ -59,6 +60,17 @@ auto C64DebuggerData::get_file_index(const std::filesystem::path& src_path) cons
   }
 
   return -1;
+}
+
+auto C64DebuggerData::get_label_info(std::string_view label) const -> const LabelEntry*
+{
+  auto it = std::find_if(labels_.begin(),
+                         labels_.end(),
+                         [&](const LabelEntry& e) { return e.name == label; });
+  if (it == labels_.end()) {
+    return nullptr;
+  }
+  return &(*it);
 }
 
 auto C64DebuggerData::eval_breakpoint_line(const std::filesystem::path& src_path, int line) const -> const BlockEntry*
@@ -138,9 +150,9 @@ auto C64DebuggerData::parse_block(tinyxml2::XMLElement* block_element) -> Block
   result.min_addr = std::numeric_limits<int>::max();
   result.max_addr = -1;
 
-  std::istringstream sources_sstr(block_element->GetText());
+  std::istringstream block_sstr(block_element->GetText());
   std::string line;
-  while(std::getline(sources_sstr, line))
+  while(std::getline(block_sstr, line))
   {
     if (trim(line).empty())
     {
@@ -167,5 +179,39 @@ auto C64DebuggerData::parse_block(tinyxml2::XMLElement* block_element) -> Block
   }
 
   return result;
+}
+
+void C64DebuggerData::parse_labels(tinyxml2::XMLElement* root)
+{
+  auto* labels_element = root->FirstChildElement("Labels");
+  throw_if<std::runtime_error>(!labels_element || 
+                               !labels_element->Attribute("values", "SEGMENT,ADDRESS,NAME,START,END,FILE_IDX,LINE1,COL1,LINE2,COL2"),
+                               "Unsupported dbg Sources format");
+
+  std::istringstream label_sstr(labels_element->GetText());
+  std::string line;
+  while(std::getline(label_sstr, line))
+  {
+    if (trim(line).empty())
+    {
+      continue;
+    }
+    auto items = split(line, ',');
+    throw_if<std::runtime_error>(items.size() != 8, "Wrong Labels line format");
+
+    auto address = parse_c64_hex(items[1]);
+
+    labels_.emplace_back(LabelEntry {
+      .segment    = items[0],
+      .address    = address,
+      .name       = items[2],
+      .file_index = stoi(items[4]),
+      .line1      = stoi(items[4]),
+      .col1       = stoi(items[5]),
+      .line2      = stoi(items[6]),
+      .col2       = stoi(items[7])
+    });
+  }
+
 }
 

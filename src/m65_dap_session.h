@@ -11,6 +11,7 @@ class M65DapSession : public M65Debugger::EventHandlerInterface
   std::unique_ptr<dap::Session> session_;
   std::promise<void> exit_promise_;
   bool client_supports_variable_type_ {false};
+  bool client_supports_memory_references_ {false};
 
 public:
   M65DapSession(const std::filesystem::path& log_file = "");

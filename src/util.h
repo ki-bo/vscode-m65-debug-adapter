@@ -32,3 +32,14 @@ auto trim(std::string& str, const std::string& trim_chars = white_space_chars) -
 {
     return ltrim(rtrim(str, trim_chars), trim_chars);
 }
+
+inline
+auto str_to_int(std::string_view str, int base) -> int
+{
+  int int_result;
+  auto result = std::from_chars(str.data(), str.data() + str.length(), int_result, 16);
+  if (result.ec == std::errc()) {
+    return int_result;
+  }
+  throw std::invalid_argument(fmt::format("Invalid number conversion for string '{}'", str));
+}

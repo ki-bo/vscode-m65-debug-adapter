@@ -24,7 +24,7 @@ M65Debugger::M65Debugger(std::string_view serial_port_device,
   }
 
   sync_connection();
-  if (reset_on_run)
+  if (reset_on_run && !is_xemu_)
   {
     reset_target();
     std::this_thread::sleep_for(2s);
@@ -40,7 +40,7 @@ M65Debugger::M65Debugger(std::string_view serial_port_device,
 
 M65Debugger::~M65Debugger()
 {
-  if (reset_on_disconnect_)
+  if (reset_on_disconnect_ && !is_xemu_)
   {
     reset_target();
   }
@@ -51,25 +51,27 @@ M65Debugger::~M65Debugger()
 
 void M65Debugger::set_target(const std::filesystem::path& prg_path)
 {
-  run_task([&]() {
+  run_task([&]() -> DebuggerTaskResult {
     upload_prg_file(prg_path);
 
     auto dbg_file = prg_path;
     dbg_file.replace_extension("dbg");
-    parse_debug_symbols(dbg_file);
+    load_debug_symbols(dbg_file);
+    return {};
   });
 }
 
 void M65Debugger::run_target()
 {
-  run_task([&]() {
+  run_task([&]() -> DebuggerTaskResult {
     simulate_keypresses("RUN\r");
+    return {};
   });
 }
 
 void M65Debugger::pause()
 {
-  run_task([&]() {
+  run_task([&]() -> DebuggerTaskResult {
     execute_command("t1\n");
     stopped_ = true;
     update_registers();
@@ -78,34 +80,39 @@ void M65Debugger::pause()
       auto f = std::async(std::launch::async, &EventHandlerInterface::handle_debugger_stopped, event_handler_, StoppedReason::Pause);
       f.wait();
     }
+    return {};
   });
 }
 
 void M65Debugger::cont()
 {
-  run_task([&]() {
+  run_task([&]() -> DebuggerTaskResult {
     execute_command("t0\n");
     stopped_ = false;
+    return {};
   });
 }
 
 void M65Debugger::next()
 {
-  run_task([&]() {
+  run_task([&]() -> DebuggerTaskResult {
     throw_if<std::runtime_error>(!stopped_, "Debugger not in stopped state");
-    execute_command("\n");
-    update_registers();
+    auto lines = execute_command("\n");
+    if (!update_registers(lines)) {
+      update_registers();
+    }
     if (event_handler_)
     {
       auto f = std::async(std::launch::async, &EventHandlerInterface::handle_debugger_stopped, event_handler_,StoppedReason::Step);
       f.wait();
     }
+    return {};
   });
 }
 
 void M65Debugger::set_breakpoint(const std::filesystem::path& src_path, int line)
 {
-  run_task([&]() {
+  run_task([&]() -> DebuggerTaskResult {
     if (!dbg_data_) {
       throw std::runtime_error("Can't set breakpoint, no debug symbols loaded");
     }
@@ -121,13 +128,20 @@ void M65Debugger::set_breakpoint(const std::filesystem::path& src_path, int line
       .pc = dbg_block_entry->start
     };
     execute_command(fmt::format("b{:X}\n", b.pc));
-    breakpoint_ = std::make_unique<Breakpoint>(std::move(b));
+    breakpoint_ = std::make_optional<Breakpoint>(std::move(b));
+    return {};
   });
 }
 
-auto M65Debugger::get_breakpoint() const -> const Breakpoint*
+void M65Debugger::clear_breakpoint()
 {
-  return breakpoint_.get();
+  execute_command("b\n");
+  breakpoint_.reset();
+}
+
+auto M65Debugger::get_breakpoint() const -> std::optional<Breakpoint>
+{
+  return breakpoint_;
 }
 
 auto M65Debugger::get_registers() -> Registers
@@ -144,32 +158,68 @@ auto M65Debugger::get_current_source_position() -> SourcePosition
 {
   SourcePosition result;
 
-  if (dbg_data_)
-  {
-    auto entry = dbg_data_->get_block_entry(current_registers_.pc, 
-                                            &result.segment,
-                                            &result.block);
-    if (entry)
-    {
-      result.src_path = dbg_data_->get_file(entry->file_index);
-      result.line = entry->line1;
-      return result;
-    }
+  if (!dbg_data_) {
+    return result;
   }
 
+  auto entry = dbg_data_->get_block_entry(current_registers_.pc, 
+                                          &result.segment,
+                                          &result.block);
+  if (entry)
+  {
+    result.src_path = dbg_data_->get_file(entry->file_index);
+    result.line = entry->line1;
+  }
   return result;  
+}
+
+auto M65Debugger::evaluate_expression(std::string_view expression, bool format_as_hex) -> EvaluateResult
+{
+  auto task_result = run_task([&]() {
+    throw_if<std::runtime_error>(!stopped_, "Debugger not in stopped state");
+    EvaluateResult result;
+    if (!dbg_data_) {
+      return result;
+    }
+
+    const auto* label_entry = dbg_data_->get_label_info(expression);
+    if (!label_entry) {
+      return result;
+    }
+
+    auto data = get_memory_bytes(label_entry->address, 2);
+
+    result.address = label_entry->address;
+    result.result_string = fmt::format("{:0>2X} {:0>2X}", data[0], data[1]);
+    return result;
+  });
+
+  return std::get<EvaluateResult>(task_result.value());
 }
 
 void M65Debugger::main_loop(std::future<void> future_exit_object)
 {
+  int cycle_counter = 0;
+
   do {
-    if (!debugger_tasks_.empty()) {
-      auto& task = debugger_tasks_.front();
-      task();
-      debugger_tasks_.pop();
+    std::optional<DebuggerTask> next_task;
+    {
+      std::scoped_lock sl(task_queue_mutex_);
+      if (!debugger_tasks_.empty()) {
+        next_task = std::move(debugger_tasks_.front());
+        debugger_tasks_.pop();
+      }
+      if (next_task.has_value()) {
+        (*next_task)();
+      }
+      cycle_counter = 0;
     }
 
     do_event_processing();
+    if (cycle_counter++ == 100) {
+      check_breakpoint_by_pc();
+      cycle_counter = 0;
+    }
   }
   while (future_exit_object.wait_for(10ms) == std::future_status::timeout);
 }
@@ -181,6 +231,7 @@ void M65Debugger::do_event_processing()
     return;
   }
 
+  DapLogger::debug_out("Breakpoint triggered\n");
   auto lines = get_lines_until_prompt();
   if (!update_registers(lines) || current_registers_.pc != breakpoint_->pc) {
     execute_command("t0\n");      
@@ -194,10 +245,23 @@ void M65Debugger::do_event_processing()
   }
 }
 
+void M65Debugger::check_breakpoint_by_pc()
+{
+  if (!breakpoint_.has_value()) {
+    return;
+  }
+  update_registers();
+  if (current_registers_.pc == breakpoint_->pc) {
+    stopped_ = true;
+    if (event_handler_) {
+      auto f = std::async(std::launch::async, &EventHandlerInterface::handle_debugger_stopped, event_handler_, StoppedReason::Breakpoint);
+      f.wait();
+    }
+  }
+}
+
 void M65Debugger::sync_connection()
 {
-  std::scoped_lock sl(read_mutex_);
-
   int retries = 10;
   bool first_try = true;
 
@@ -250,8 +314,6 @@ void M65Debugger::sync_connection()
 
 void M65Debugger::reset_target()
 {
-  std::scoped_lock sl(read_mutex_);
-
   std::string cmd = "!\n";
   conn_->write(cmd);
 
@@ -361,15 +423,13 @@ void M65Debugger::upload_prg_file(const std::filesystem::path& prg_path)
 
   auto cmd = fmt::format("l{:X} {:X}\n", load_address, end_address_plus_one);
 
-  std::scoped_lock sl(read_mutex_);
-
   conn_->write(cmd);
   conn_->write(payload);
 
   get_lines_until_prompt();
 }
 
-void M65Debugger::parse_debug_symbols(const std::filesystem::path& dbg_path)
+void M65Debugger::load_debug_symbols(const std::filesystem::path& dbg_path)
 {
   dbg_data_ = std::make_unique<C64DebuggerData>(dbg_path);
 }
@@ -434,8 +494,6 @@ auto M65Debugger::get_lines_until_prompt() -> std::vector<std::string>
 
 std::vector<std::string> M65Debugger::execute_command(std::string_view cmd)
 {
-  std::scoped_lock sl(read_mutex_);
-
   conn_->write(cmd);
 
   while (true)
@@ -461,4 +519,52 @@ std::vector<std::string> M65Debugger::execute_command(std::string_view cmd)
 void M65Debugger::process_async_event(const std::vector<std::string>& lines)
 {
   // todo
+}
+
+auto M65Debugger::get_memory_bytes(int address, int count) -> std::vector<std::byte>
+{
+  assert(address >= 0 && count >= 0);
+  std::vector<std::byte> result;
+  result.reserve(count);
+  int pos = 0;
+  static const int bytes_per_line = 16;
+
+  while (pos < count) {
+    std::vector<std::string> lines;
+    if (count - pos <= bytes_per_line) {
+      lines = execute_command(fmt::format("m{:X}\n", address));
+    } else {
+      lines = execute_command(fmt::format("M{:X}\n", address));
+    }
+    for (const auto& line : lines) {
+      if (pos >= count) {
+        break;
+      }
+      auto needed = std::min(count - pos, bytes_per_line);
+      auto ret_addr = parse_address_line(line, result, needed);
+      if (ret_addr != address) {
+        throw std::runtime_error("Unexpected address range provided by read memory command");
+      }
+      address += bytes_per_line;
+      pos += needed;
+    }
+  }
+
+  return result;
+}
+
+auto M65Debugger::parse_address_line(std::string_view mem_string, 
+                                     std::vector<std::byte>& target, 
+                                     int num_bytes) -> int
+{
+  if (mem_string.empty() || mem_string.length() != 41 || !mem_string.starts_with(":")) {
+    throw std::runtime_error("Unexpected memory read response");
+  }
+  auto ret_addr = str_to_int(mem_string.substr(1, 7), 16);
+  
+  for (int idx {0}; idx < num_bytes; ++idx) {
+    target.push_back(static_cast<std::byte>(str_to_int(mem_string.substr(9 + 2 * idx, 2), 16)));
+  }
+
+  return ret_addr;
 }

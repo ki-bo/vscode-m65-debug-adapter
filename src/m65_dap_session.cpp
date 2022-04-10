@@ -113,10 +113,12 @@ void M65DapSession::register_request_handlers()
     [&](const dap::InitializeRequest& req)
     {
       client_supports_variable_type_ = req.supportsVariableType.value(false);
+      client_supports_memory_references_ = req.supportsMemoryReferences.value(false);
 
       dap::InitializeResponse res;
       res.supportsConfigurationDoneRequest = true;
       res.supportsValueFormattingOptions = true;
+      res.supportsReadMemoryRequest = true;
       return res;
     }
   );
@@ -210,7 +212,11 @@ void M65DapSession::register_request_handlers()
   );
 
   session_->registerHandler(
-    [&](const dap::SetBreakpointsRequest& req) {
+    [&](const dap::SetBreakpointsRequest& req) -> dap::ResponseOrError<dap::SetBreakpointsResponse> {
+      if (!debugger_) {
+        return dap::Error("Debugger not initialized");
+      }
+      
       dap::SetBreakpointsResponse response;
       if (!req.breakpoints.has_value()) {
         return response;
@@ -225,7 +231,7 @@ void M65DapSession::register_request_handlers()
         dap::Source src;
         src.path = src_path;
         result.source = src;
-        if (debugger_->get_breakpoint() != nullptr) {
+        if (debugger_->get_breakpoint().has_value()) {
           result.verified = false;
         } else {
           result.verified = true;
@@ -268,8 +274,10 @@ void M65DapSession::register_request_handlers()
   );
 
   session_->registerHandler(
-    [&](const dap::StackTraceRequest&) {
-      assert(debugger_);
+    [&](const dap::StackTraceRequest&) -> dap::ResponseOrError<dap::StackTraceResponse> {
+      if (!debugger_) {
+        return dap::Error("Debugger not initialized");
+      }
       auto src_pos = debugger_->get_current_source_position();
 
       dap::StackTraceResponse response;
@@ -315,7 +323,16 @@ void M65DapSession::register_request_handlers()
       registers_scope.name = "Registers";
       registers_scope.presentationHint = "registers";
       registers_scope.variablesReference = var_registers_id;
+      registers_scope.expensive = false;
       response.scopes.push_back(registers_scope);
+      
+      dap::Scope local_scope;
+      local_scope.name = "Local Vars";
+      local_scope.presentationHint = "locals";
+      local_scope.variablesReference = 2;
+      local_scope.expensive = false;
+      response.scopes.push_back(local_scope);
+
       return response;
     }
   );
@@ -379,4 +396,27 @@ void M65DapSession::register_request_handlers()
       return response;
     }
   );
+
+  session_->registerHandler(
+    [&](const dap::EvaluateRequest& req) -> dap::ResponseOrError<dap::EvaluateResponse> {
+      if (!debugger_) {
+        return dap::Error("Debugger not initialized");
+      }
+
+      dap::EvaluateResponse response;
+
+      bool format_as_hex = req.format.has_value()
+                             ? req.format.value().hex.value(true)
+                             : dap::boolean(true);
+
+      auto eval_result = debugger_->evaluate_expression(req.expression, format_as_hex);
+      response.variablesReference = 0;
+      response.result = eval_result.result_string;
+      if (client_supports_memory_references_ && eval_result.address > -1) {
+        response.memoryReference = fmt::format("${:X}", eval_result.address);
+      }
+      return response;
+    }
+  );
+
 }

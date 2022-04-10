@@ -63,11 +63,24 @@ struct Segment
 
 };
 
+struct LabelEntry
+{
+  std::string segment;
+  int address;
+  std::string name;
+  int file_index;
+  int line1;
+  int col1;
+  int line2;
+  int col2;
+};
+
 class C64DebuggerData
 {
 
   std::map<int, std::string> files_;
   std::vector<Segment> segments_;
+  std::vector<LabelEntry> labels_;
 
 public:
   C64DebuggerData(const std::filesystem::path& dbg_file);
@@ -76,6 +89,7 @@ public:
                        std::string* block = nullptr) const -> const BlockEntry*;
   auto get_file(int idx) const -> std::string;
   auto get_file_index(const std::filesystem::path& src_path) const -> int;
+  auto get_label_info(std::string_view label) const -> const LabelEntry*;
 
   /**
    * @brief Calculates next possible line number to set breakpoint starting at "line"
@@ -91,4 +105,5 @@ private:
   void parse_segments(tinyxml2::XMLElement* root);
   auto parse_segment(tinyxml2::XMLElement* segment_element) -> Segment;
   auto parse_block(tinyxml2::XMLElement* block_element) -> Block;
+  void parse_labels(tinyxml2::XMLElement* root);
 };

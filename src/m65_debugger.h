@@ -65,8 +65,15 @@ public:
     int pc {0};
   };
 
+  struct EvaluateResult 
+  {
+    std::string result_string;
+    int address {-1};
+  };
+
 private:
-  using DebuggerTask = std::packaged_task<void()>;
+  using DebuggerTaskResult = std::optional<std::variant<EvaluateResult>>;
+  using DebuggerTask = std::packaged_task<DebuggerTaskResult()>;
 
   EventHandlerInterface* event_handler_ {nullptr};
   std::unique_ptr<Connection> conn_;
@@ -79,8 +86,8 @@ private:
   bool reset_on_disconnect_ {true};
   bool stopped_ {false};
   Registers current_registers_;
-  std::unique_ptr<Breakpoint> breakpoint_;
-  std::recursive_mutex read_mutex_;
+  std::optional<Breakpoint> breakpoint_;
+  std::mutex task_queue_mutex_;
 
 public:
   M65Debugger(std::string_view serial_port_device,
@@ -96,21 +103,28 @@ public:
   void cont();
   void next();
   void set_breakpoint(const std::filesystem::path& src_path, int line);
-  auto get_breakpoint() const -> const Breakpoint*;
+  void clear_breakpoint();
+  auto get_breakpoint() const -> std::optional<Breakpoint>;
   auto get_registers() -> Registers;
   auto get_pc() -> int;
   auto get_current_source_position() -> SourcePosition;
+  auto evaluate_expression(std::string_view expression, bool format_as_hex) -> EvaluateResult;
 
 private:
   void main_loop(std::future<void> future_exit_object);
   void do_event_processing();
+  void check_breakpoint_by_pc();
+
   template<typename Func>
-  void run_task(Func f)
+  DebuggerTaskResult run_task(Func f)
   {
     auto task = DebuggerTask(f);
     auto fut = task.get_future();
-    debugger_tasks_.push(std::move(task));
-    fut.wait();
+    {
+      std::scoped_lock sl(task_queue_mutex_);
+      debugger_tasks_.push(std::move(task));    
+    }
+    return fut.get();
   }
 
   void sync_connection();
@@ -119,10 +133,13 @@ private:
   auto update_registers(std::vector<std::string> lines) -> bool;
   
   void upload_prg_file(const std::filesystem::path& prg_path);
-  void parse_debug_symbols(const std::filesystem::path& dbg_path);
+  void load_debug_symbols(const std::filesystem::path& dbg_path);
   void simulate_keypresses(std::string_view keys);
   auto get_lines_until_prompt() -> std::vector<std::string>;
   auto execute_command(std::string_view cmd) -> std::vector<std::string>;
   void process_async_event(const std::vector<std::string>& lines);
-
+  auto get_memory_bytes(int address, int count) -> std::vector<std::byte>;
+  auto parse_address_line(std::string_view mem_string, 
+                          std::vector<std::byte>& target, 
+                          int num_bytes) -> int;
 };
