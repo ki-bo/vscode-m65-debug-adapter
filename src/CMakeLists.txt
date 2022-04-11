@@ -11,6 +11,8 @@ add_executable(m65dbg_adapter
     m65_debugger.cpp
     m65_debugger.h
     main.cpp
+    memory_cache.cpp
+    memory_cache.h
     serial_connection.h
     serial_connection.cpp
     unix_connection.cpp

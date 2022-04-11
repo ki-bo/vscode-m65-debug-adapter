@@ -50,7 +50,7 @@ auto UnixConnection::read_line(int timeout_ms) -> std::pair<std::string, bool>
 
   Duration t;
 
-  while ((pos = buffer_.find_first_of("\r\n")) == std::string::npos)
+  while ((pos = buffer_.find_first_of("\n")) == std::string::npos)
   {
     if (!buffer_.empty() && buffer_.front() == '.')
     {
@@ -83,7 +83,10 @@ auto UnixConnection::read_line(int timeout_ms) -> std::pair<std::string, bool>
   }
 
   auto line = buffer_.substr(0, pos);
-  buffer_.erase(0, pos + 2);
+  buffer_.erase(0, pos + 1);
+  if (!line.empty() && line.back() == '\r') {
+    line.pop_back();
+  }
   last_line_was_empty_ = line.empty();
 
   DapLogger::debug_out(fmt::format("<- \"{}\"\n", line));

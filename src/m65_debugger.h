@@ -2,6 +2,7 @@
 
 #include "connection.h"
 #include "c64_debugger_data.h"
+#include "memory_cache.h"
 
 class M65Debugger
 {
@@ -72,10 +73,13 @@ public:
   };
 
 private:
+  friend class MemoryCache;
+
   using DebuggerTaskResult = std::optional<std::variant<EvaluateResult>>;
   using DebuggerTask = std::packaged_task<DebuggerTaskResult()>;
 
   EventHandlerInterface* event_handler_ {nullptr};
+  MemoryCache memory_cache_;
   std::unique_ptr<Connection> conn_;
   std::thread main_loop_thread_;
   std::promise<void> main_loop_exit_signal_;
@@ -138,8 +142,6 @@ private:
   auto get_lines_until_prompt() -> std::vector<std::string>;
   auto execute_command(std::string_view cmd) -> std::vector<std::string>;
   void process_async_event(const std::vector<std::string>& lines);
-  auto get_memory_bytes(int address, int count) -> std::vector<std::byte>;
-  auto parse_address_line(std::string_view mem_string, 
-                          std::vector<std::byte>& target, 
-                          int num_bytes) -> int;
+  void get_memory_bytes(int address, std::span<std::byte> target);
+  auto parse_address_line(std::string_view mem_string, std::span<std::byte> target) -> int;
 };

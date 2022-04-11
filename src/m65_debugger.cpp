@@ -10,6 +10,7 @@ M65Debugger::M65Debugger(std::string_view serial_port_device,
                          bool reset_on_run,
                          bool reset_on_disconnect) :
   event_handler_(event_handler),
+  memory_cache_(this),
   reset_on_disconnect_(reset_on_disconnect)
 {
   if (serial_port_device.starts_with("unix#"))
@@ -75,6 +76,7 @@ void M65Debugger::pause()
     execute_command("t1\n");
     stopped_ = true;
     update_registers();
+    memory_cache_.invalidate();
     if (event_handler_)
     {
       auto f = std::async(std::launch::async, &EventHandlerInterface::handle_debugger_stopped, event_handler_, StoppedReason::Pause);
@@ -101,6 +103,7 @@ void M65Debugger::next()
     if (!update_registers(lines)) {
       update_registers();
     }
+    memory_cache_.refresh_accessed();
     if (event_handler_)
     {
       auto f = std::async(std::launch::async, &EventHandlerInterface::handle_debugger_stopped, event_handler_,StoppedReason::Step);
@@ -182,15 +185,87 @@ auto M65Debugger::evaluate_expression(std::string_view expression, bool format_a
       return result;
     }
 
-    const auto* label_entry = dbg_data_->get_label_info(expression);
+    static const std::regex direct_regex  (R"(^\s*(\w+)(?:\s*,\s*([xyz]))?(?:\s*,\s*([bwq]))?(?:\s*,\s*(\d+))?\s*$)", 
+                                     std::regex::icase | std::regex::optimize);
+    static const std::regex indirect_regex(R"(^\s*\(\s*(\w+)\s*\)(?:\s*,\s*([xyz]))?(?:\s*,\s*([bwq]))?(?:\s*,\s*(\d+))?\s*$)", 
+                                     std::regex::icase | std::regex::optimize);
+    
+    std::smatch match;
+    std::string expression_str(expression);
+
+    bool indirect;
+    if (std::regex_search(expression_str, match, direct_regex)) {
+      indirect = false;
+    } else if (std::regex_search(expression_str, match, indirect_regex)) {
+      indirect = true;
+    } else {
+      return result;
+    }
+
+    const auto& label_match        = match[1];
+    const auto& index_match        = match[2];
+    const auto& type_match         = match[3];
+    const auto& num_elements_match = match[4];
+
+    int type_size {1};
+    if (type_match.matched) {
+      char type_char = type_match.str().front();
+      switch (type_char) {
+        case 'b':
+          type_size = 1;
+          break;
+        case 'w':
+          type_size = 2;
+          break;
+        case 'q':
+          type_size = 4;
+          break;
+        default:
+          throw std::logic_error(fmt::format("Unexpected expression data type '{}'", match[2].str()));
+      }
+    }
+
+    std::string_view label {label_match.str()};
+
+    int num_elements {1};
+    if (num_elements_match.matched) {
+      num_elements = std::min(256, std::atoi(num_elements_match.str().c_str()));
+    }
+
+    const auto* label_entry = dbg_data_->get_label_info(label);
     if (!label_entry) {
       return result;
     }
 
-    auto data = get_memory_bytes(label_entry->address, 2);
+    std::vector<std::byte> tmp(type_size * num_elements);
+    memory_cache_.read(label_entry->address, tmp);
 
     result.address = label_entry->address;
-    result.result_string = fmt::format("{:0>2X} {:0>2X}", data[0], data[1]);
+    switch (type_size) {
+      case 1:
+        result.result_string.reserve(3 * num_elements);
+        for (int idx {0}; idx < num_elements; ++idx) {
+          result.result_string.append(fmt::format("{:0>2X} ", tmp[idx]));
+        }
+        break;
+      case 2:
+        result.result_string.reserve(5 * num_elements);
+        for (int idx {0}; idx < num_elements; ++idx) {
+          result.result_string.append(fmt::format("{:0>2X}{:0>2X} ", tmp[idx + 1], tmp[idx]));
+        }
+        break;
+      case 4:
+        result.result_string.reserve(9 * num_elements);
+        for (int idx {0}; idx < num_elements; ++idx) {
+          result.result_string.append(fmt::format("{:0>2X}{:0>2X}{:0>2X}{:0>2X} ", 
+                                                  tmp[idx + 3], 
+                                                  tmp[idx + 2],
+                                                  tmp[idx + 1],
+                                                  tmp[idx]));
+        }
+        break;
+    }
+    result.result_string.pop_back();
     return result;
   });
 
@@ -238,6 +313,7 @@ void M65Debugger::do_event_processing()
     return;
   }
 
+  memory_cache_.invalidate();
   stopped_ = true;
   if (event_handler_) {
     auto f = std::async(std::launch::async, &EventHandlerInterface::handle_debugger_stopped, event_handler_, StoppedReason::Breakpoint);
@@ -521,11 +597,10 @@ void M65Debugger::process_async_event(const std::vector<std::string>& lines)
   // todo
 }
 
-auto M65Debugger::get_memory_bytes(int address, int count) -> std::vector<std::byte>
+void M65Debugger::get_memory_bytes(int address, std::span<std::byte> target)
 {
-  assert(address >= 0 && count >= 0);
-  std::vector<std::byte> result;
-  result.reserve(count);
+  assert(address >= 0);
+  const int count = target.size();
   int pos = 0;
   static const int bytes_per_line = 16;
 
@@ -541,7 +616,7 @@ auto M65Debugger::get_memory_bytes(int address, int count) -> std::vector<std::b
         break;
       }
       auto needed = std::min(count - pos, bytes_per_line);
-      auto ret_addr = parse_address_line(line, result, needed);
+      auto ret_addr = parse_address_line(line, target.subspan(pos, needed));
       if (ret_addr != address) {
         throw std::runtime_error("Unexpected address range provided by read memory command");
       }
@@ -549,21 +624,19 @@ auto M65Debugger::get_memory_bytes(int address, int count) -> std::vector<std::b
       pos += needed;
     }
   }
-
-  return result;
 }
 
-auto M65Debugger::parse_address_line(std::string_view mem_string, 
-                                     std::vector<std::byte>& target, 
-                                     int num_bytes) -> int
+auto M65Debugger::parse_address_line(std::string_view mem_string, std::span<std::byte> target) -> int
 {
   if (mem_string.empty() || mem_string.length() != 41 || !mem_string.starts_with(":")) {
     throw std::runtime_error("Unexpected memory read response");
   }
   auto ret_addr = str_to_int(mem_string.substr(1, 7), 16);
   
-  for (int idx {0}; idx < num_bytes; ++idx) {
-    target.push_back(static_cast<std::byte>(str_to_int(mem_string.substr(9 + 2 * idx, 2), 16)));
+  int str_pos = 9;
+  for (auto& val : target) {
+    val = static_cast<std::byte>(str_to_int(mem_string.substr(str_pos, 2), 16));
+    str_pos += 2;
   }
 
   return ret_addr;

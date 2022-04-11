@@ -14,6 +14,8 @@
 #include <memory>
 #include <optional>
 #include <queue>
+#include <ranges>
+#include <regex>
 #include <span>
 #include <stdexcept>
 #include <sstream>
