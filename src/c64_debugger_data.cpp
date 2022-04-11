@@ -205,7 +205,7 @@ void C64DebuggerData::parse_labels(tinyxml2::XMLElement* root)
       .segment    = items[0],
       .address    = address,
       .name       = items[2],
-      .file_index = stoi(items[4]),
+      .file_index = stoi(items[3]),
       .line1      = stoi(items[4]),
       .col1       = stoi(items[5]),
       .line2      = stoi(items[6]),
