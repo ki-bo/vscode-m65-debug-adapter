@@ -1,5 +1,8 @@
 #include "util.h"
 
+namespace m65dap
+{
+
 std::vector<std::string> split(const std::string& str, char delim)
 {
   std::vector<std::string> result;
@@ -13,3 +16,5 @@ std::vector<std::string> split(const std::string& str, char delim)
 
   return result;
 }
+
+} // namespace

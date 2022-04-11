@@ -5,6 +5,9 @@
 
 #include "m65_debugger.h"
 
+namespace m65dap
+{
+
 class M65DapSession : public M65Debugger::EventHandlerInterface
 {
   std::unique_ptr<M65Debugger> debugger_;
@@ -25,3 +28,5 @@ private:
   void register_error_handler();
   void register_request_handlers();
 };
+
+} // namespace

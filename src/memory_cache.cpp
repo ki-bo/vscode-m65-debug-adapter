@@ -8,6 +8,9 @@ const int bytes_per_cache_line = 512;
 
 }
 
+namespace m65dap
+{
+
 MemoryCache::MemoryCache(M65Debugger* parent, int num_cache_lines)
   : debugger_(parent),
     data_(num_cache_lines * bytes_per_cache_line),
@@ -90,3 +93,5 @@ auto MemoryCache::ensure_valid_cache_line(int line_address) -> LineInfo*
 
   return info;
 }
+
+} // namespace

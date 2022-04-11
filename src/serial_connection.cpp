@@ -9,6 +9,9 @@
 #include <IOKit/serial/ioss.h>
 #endif
 
+namespace m65dap
+{
+
 SerialConnection::SerialConnection(std::string_view port)
 {
   fd_ = open (std::string(port).c_str(), O_RDWR | O_NOCTTY | O_SYNC);
@@ -40,3 +43,4 @@ SerialConnection::SerialConnection(std::string_view port)
   flush_rx_buffers();
 }
 
+} // namespace

@@ -5,11 +5,14 @@ namespace
 
 int parse_c64_hex(std::string_view str)
 {
-  throw_if<std::runtime_error>(str.empty() || str.front() != '$', "Unexpected hex format");
+  m65dap::throw_if<std::runtime_error>(str.empty() || str.front() != '$', "Unexpected hex format");
   return std::stoi(std::string(str.substr(1)), nullptr, 16);
 }
 
 }
+
+namespace m65dap
+{
 
 C64DebuggerData::C64DebuggerData(const std::filesystem::path& dbg_file)
 {
@@ -215,3 +218,4 @@ void C64DebuggerData::parse_labels(tinyxml2::XMLElement* root)
 
 }
 
+} // namespace

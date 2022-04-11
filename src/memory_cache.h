@@ -1,5 +1,8 @@
 #pragma once
 
+namespace m65dap
+{
+
 class M65Debugger;
 
 class MemoryCache
@@ -29,3 +32,5 @@ public:
 private:
   auto ensure_valid_cache_line(int line_address) -> LineInfo*;
 };
+
+} // namespace

@@ -1,5 +1,8 @@
 #pragma once
 
+namespace m65dap
+{
+
 std::vector<std::string> split(const std::string&, char delim);
 
 inline template<typename ExceptionType>
@@ -43,3 +46,5 @@ auto str_to_int(std::string_view str, int base) -> int
   }
   throw std::invalid_argument(fmt::format("Invalid number conversion for string '{}'", str));
 }
+
+} // namespace

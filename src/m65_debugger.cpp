@@ -5,6 +5,9 @@
 
 using namespace std::chrono_literals;
 
+namespace m65dap
+{
+
 M65Debugger::M65Debugger(std::string_view serial_port_device, 
                          EventHandlerInterface* event_handler,
                          bool reset_on_run,
@@ -641,3 +644,5 @@ auto M65Debugger::parse_address_line(std::string_view mem_string, std::span<std:
 
   return ret_addr;
 }
+
+} // namespace

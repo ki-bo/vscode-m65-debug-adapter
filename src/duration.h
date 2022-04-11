@@ -1,5 +1,8 @@
 #pragma once
 
+namespace m65dap
+{
+
 class Duration
 {
   using time_point = std::chrono::steady_clock::time_point;
@@ -14,3 +17,5 @@ public:
     return std::chrono::duration_cast<std::chrono::milliseconds>(cur_time - start_time_).count();
   }
 };
+
+} // namespace

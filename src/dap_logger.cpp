@@ -1,6 +1,9 @@
 #include "dap_logger.h"
 #include <dap/protocol.h>
 
+namespace m65dap
+{
+
 DapLogger& DapLogger::instance()
 {
   static DapLogger instance;
@@ -32,3 +35,4 @@ void DapLogger::write_log_file(std::string_view msg)
   }
 }
 
+} // namespace

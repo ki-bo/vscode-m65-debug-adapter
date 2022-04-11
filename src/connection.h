@@ -1,5 +1,8 @@
 #pragma once
 
+namespace m65dap
+{
+
 class Connection
 {
 public:
@@ -11,3 +14,5 @@ public:
   virtual auto read(int bytes_to_read, int timeout_ms = 1000) -> std::string = 0;
   virtual void flush_rx_buffers() = 0;
 };
+
+} // namespace

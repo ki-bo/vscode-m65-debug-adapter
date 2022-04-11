@@ -3,6 +3,9 @@
 #include <dap/io.h>
 #include <dap/session.h>
 
+namespace m65dap
+{
+
 class DapLogger
 {
   std::shared_ptr<dap::Writer> log_file_;
@@ -24,3 +27,5 @@ public:
   auto get_file() -> std::shared_ptr<dap::Writer> { return log_file_; }
 
 };
+
+} // namespace

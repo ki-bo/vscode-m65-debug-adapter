@@ -2,6 +2,9 @@
 
 #include <tinyxml2.h>
 
+namespace m65dap
+{
+
 struct BlockEntry
 {
   int start;
@@ -107,3 +110,5 @@ private:
   auto parse_block(tinyxml2::XMLElement* block_element) -> Block;
   void parse_labels(tinyxml2::XMLElement* root);
 };
+
+} // namespace

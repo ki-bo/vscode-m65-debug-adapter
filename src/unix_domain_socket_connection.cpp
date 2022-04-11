@@ -4,6 +4,9 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
+namespace m65dap
+{
+
 UnixDomainSocketConnection::UnixDomainSocketConnection(const std::filesystem::path& path)
 {
   std::string_view native_path = path.native();
@@ -34,3 +37,5 @@ UnixDomainSocketConnection::UnixDomainSocketConnection(const std::filesystem::pa
     throw std::runtime_error(fmt::format("Connect error: {}", strerror (errno)));
   }
 }
+
+} // namespace

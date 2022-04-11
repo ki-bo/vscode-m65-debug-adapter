@@ -2,6 +2,9 @@
 
 #include "connection.h"
 
+namespace m65dap
+{
+
 class UnixConnection : public Connection
 {
   std::string buffer_;
@@ -20,3 +23,5 @@ public:
   void flush_rx_buffers() override;
 
 };
+
+} // namespace

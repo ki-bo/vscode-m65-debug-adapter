@@ -41,6 +41,9 @@ namespace
 
 }
 
+namespace m65dap
+{
+
 M65DapSession::M65DapSession(const std::filesystem::path& log_file_path)
   : session_(dap::Session::create())
 {
@@ -420,3 +423,5 @@ void M65DapSession::register_request_handlers()
   );
 
 }
+
+} // namespace

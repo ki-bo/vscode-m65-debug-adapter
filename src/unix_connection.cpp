@@ -7,6 +7,9 @@
 
 using namespace std::chrono_literals;
 
+namespace m65dap
+{
+
 void UnixConnection::write(std::span<const char> buffer)
 {
   int written = 0;
@@ -133,4 +136,4 @@ void UnixConnection::flush_rx_buffers()
   }
 }
 
-
+} // namespace

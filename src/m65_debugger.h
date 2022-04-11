@@ -4,6 +4,9 @@
 #include "c64_debugger_data.h"
 #include "memory_cache.h"
 
+namespace m65dap
+{
+
 class M65Debugger
 {
 public:
@@ -145,3 +148,5 @@ private:
   void get_memory_bytes(int address, std::span<std::byte> target);
   auto parse_address_line(std::string_view mem_string, std::span<std::byte> target) -> int;
 };
+
+} // namespace

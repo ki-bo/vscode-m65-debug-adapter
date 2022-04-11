@@ -22,7 +22,7 @@ int main()
   // Wait for debugger to attach
   raise(SIGSTOP);
 
-  M65DapSession session("/tmp/daplog.txt");
+  m65dap::M65DapSession session("/tmp/daplog.txt");
 
   session.run();
 
