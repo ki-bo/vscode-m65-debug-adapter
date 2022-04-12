@@ -20,9 +20,13 @@ int main()
 #endif
 
   // Wait for debugger to attach
-  //raise(SIGSTOP);
-
+#ifndef NDEBUG
+  raise(SIGSTOP);
   m65dap::M65DapSession session("/tmp/daplog.txt");
+#else
+  m65dap::M65DapSession session;
+#endif
+
 
   session.run();
 

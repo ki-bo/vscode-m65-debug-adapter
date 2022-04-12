@@ -1,0 +1,32 @@
+{
+    "name": "mega65-debugger",
+    "displayName": "MEGA65 Debugger",
+    "description": "MEGA65 serial remote debug adapter",
+    "version": "@PROJECT_VERSION@",
+    "preview": false,
+    "publisher": "kibo",
+    "author": {
+        "name": "kibo"
+    },
+    "license": "SEE LICENSE IN LICENSE.txt",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/ki-bo/vscode-m65-debug-adapter"
+      },
+    "engines": {
+        "vscode": "^1.32.0"
+    },
+    "categories": [
+        "Debuggers"
+    ],
+    "contributes": {
+        "debuggers": [
+            {
+                "type": "m65dbg_adapter",
+                "program": "@m65dbg_filename@",
+                "label": "m65dbg adapter",
+                "configurationAttributes": {}
+            }
+        ]
+    }
+}
