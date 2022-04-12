@@ -20,7 +20,7 @@ int main()
 #endif
 
   // Wait for debugger to attach
-  raise(SIGSTOP);
+  //raise(SIGSTOP);
 
   m65dap::M65DapSession session("/tmp/daplog.txt");
 
