@@ -144,7 +144,7 @@ private:
   void simulate_keypresses(std::string_view keys);
   auto get_lines_until_prompt() -> std::vector<std::string>;
   auto execute_command(std::string_view cmd) -> std::vector<std::string>;
-  void process_async_event(const std::vector<std::string>& lines);
+  void process_async_event(std::vector<std::string>& lines);
   void get_memory_bytes(int address, std::span<std::byte> target);
   auto parse_address_line(std::string_view mem_string, std::span<std::byte> target) -> int;
 };

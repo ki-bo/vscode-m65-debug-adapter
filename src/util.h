@@ -5,11 +5,10 @@ namespace m65dap
 
 std::vector<std::string> split(const std::string&, char delim);
 
-inline template<typename ExceptionType>
+template<typename ExceptionType>
 void throw_if(bool condition, std::string_view msg)
 {
-  if (condition)
-  {
+  if (condition) {
     throw ExceptionType(std::string(msg).c_str());
   }
 }
@@ -37,14 +36,25 @@ auto trim(std::string& str, const std::string& trim_chars = white_space_chars) -
 }
 
 inline
-auto str_to_int(std::string_view str, int base) -> int
+auto str_to_int(std::string_view str, int base = 10) -> int
 {
   int int_result;
-  auto result = std::from_chars(str.data(), str.data() + str.length(), int_result, 16);
+  auto result = std::from_chars(str.data(), str.data() + str.length(), int_result, base);
   if (result.ec == std::errc()) {
     return int_result;
   }
   throw std::invalid_argument(fmt::format("Invalid number conversion for string '{}'", str));
+}
+
+inline 
+auto replace_all(std::string& str, std::string_view find_str, std::string_view replace_str) -> std::string&
+{
+  std::string::size_type pos{};
+  while ((pos = str.find(find_str.data(), pos, find_str.length())) != str.npos) {
+    str.replace(pos, find_str.length(), replace_str.data(), replace_str.length());
+    pos += replace_str.length();
+  }
+  return str;
 }
 
 } // namespace

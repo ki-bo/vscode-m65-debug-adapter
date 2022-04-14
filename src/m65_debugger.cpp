@@ -1,5 +1,6 @@
 #include "m65_debugger.h"
 #include "dap_logger.h"
+#include "duration.h"
 #include "serial_connection.h"
 #include "unix_domain_socket_connection.h"
 
@@ -103,6 +104,9 @@ void M65Debugger::next()
   run_task([&]() -> DebuggerTaskResult {
     throw_if<std::runtime_error>(!stopped_, "Debugger not in stopped state");
     auto lines = execute_command("\n");
+    if (is_xemu_) {
+      lines = get_lines_until_prompt();
+    }
     if (!update_registers(lines)) {
       update_registers();
     }
@@ -277,7 +281,7 @@ auto M65Debugger::evaluate_expression(std::string_view expression, bool format_a
 
 void M65Debugger::main_loop(std::future<void> future_exit_object)
 {
-  int cycle_counter = 0;
+  Duration duration_since_last_interaction;
 
   do {
     std::optional<DebuggerTask> next_task;
@@ -289,14 +293,14 @@ void M65Debugger::main_loop(std::future<void> future_exit_object)
       }
       if (next_task.has_value()) {
         (*next_task)();
+        duration_since_last_interaction.reset();
       }
-      cycle_counter = 0;
     }
 
     do_event_processing();
-    if (cycle_counter++ == 100) {
+    if (duration_since_last_interaction.elapsed_ms() > 1000) {
       check_breakpoint_by_pc();
-      cycle_counter = 0;
+      duration_since_last_interaction.reset();
     }
   }
   while (future_exit_object.wait_for(10ms) == std::future_status::timeout);
@@ -304,24 +308,40 @@ void M65Debugger::main_loop(std::future<void> future_exit_object)
 
 void M65Debugger::do_event_processing()
 {
-  auto result = conn_->read(1, 10);
-  if (result.empty() || result.front() != '!') {
+  auto result = conn_->read_line(0); 
+  if (result.second) {
+    // No line available now
     return;
   }
 
-  DapLogger::debug_out("Breakpoint triggered\n");
-  auto lines = get_lines_until_prompt();
-  if (!update_registers(lines) || current_registers_.pc != breakpoint_->pc) {
-    execute_command("t0\n");      
-    return;
+  auto& line = result.first;
+  if (line != "!" && !line.empty()) {
+    throw std::runtime_error("Unexpected breakpoint trigger response");
+  }
+  
+  std::vector<std::string> lines;
+  if (is_xemu_) {
+    result = conn_->read_line();
+    throw_if<timeout_error>(result.second, "Timeout reading breakpoint registers header");
+    lines.emplace_back(std::move(result.first));
+    if (!lines.back().starts_with("PC   A")) {
+      throw std::runtime_error("Expected register header in breakpoint response");
+    }
+    result = conn_->read_line();
+    throw_if<timeout_error>(result.second, "Timeout reading breakpoint registers values");
+    lines.emplace_back(std::move(result.first));
+    result = conn_->read_line();
+    throw_if<timeout_error>(result.second, "Timeout reading breakpoint memory location");
+    lines.emplace_back(std::move(result.first));
+    if (!lines.back().starts_with(",0777")) {
+      throw std::runtime_error("Expected register header in breakpoint response");
+    }
+  } else {
+    // Real HW monitor
+    lines = get_lines_until_prompt();
   }
 
-  memory_cache_.invalidate();
-  stopped_ = true;
-  if (event_handler_) {
-    auto f = std::async(std::launch::async, &EventHandlerInterface::handle_debugger_stopped, event_handler_, StoppedReason::Breakpoint);
-    f.wait();
-  }
+  process_async_event(lines);
 }
 
 void M65Debugger::check_breakpoint_by_pc()
@@ -556,14 +576,9 @@ auto M65Debugger::get_lines_until_prompt() -> std::vector<std::string>
   while (true)
   {
     auto result = conn_->read_line();
-    if (result.second)
-    {
-      // timeout
-      throw timeout_error();
-    }
+    throw_if<timeout_error>(result.second, "Timeout reading line");
 
-    if (result.first == ".")
-    {
+    if (result.first == ".") {
       return lines;
     }
 
@@ -595,9 +610,25 @@ std::vector<std::string> M65Debugger::execute_command(std::string_view cmd)
   }
 }
 
-void M65Debugger::process_async_event(const std::vector<std::string>& lines)
+void M65Debugger::process_async_event(std::vector<std::string>& lines)
 {
-  // todo
+  std::erase_if(lines, [](const std::string& s) { return s.empty(); });
+  if (!lines[0].starts_with("PC   A  X  Y  Z  B  SP")) {
+    throw std::runtime_error("Unexpected breakpoint trigger response");
+  }
+
+  DapLogger::debug_out("Breakpoint triggered\n");
+  if (!update_registers(lines) || current_registers_.pc != breakpoint_->pc) {
+    execute_command("t0\n");      
+    return;
+  }
+
+  memory_cache_.invalidate();
+  stopped_ = true;
+  if (event_handler_) {
+    auto f = std::async(std::launch::async, &EventHandlerInterface::handle_debugger_stopped, event_handler_, StoppedReason::Breakpoint);
+    f.wait();
+  }
 }
 
 void M65Debugger::get_memory_bytes(int address, std::span<std::byte> target)

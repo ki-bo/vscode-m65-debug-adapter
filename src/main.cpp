@@ -5,6 +5,7 @@
 #include <fcntl.h> // _O_BINARY
 #include <io.h>    // _setmode
 #endif
+#include <unistd.h>
 
 // Needed to attach debugger (we send SIGSTOP to ourselves to wait for debugger to connect)
 #include <csignal>
@@ -21,7 +22,9 @@ int main()
 
   // Wait for debugger to attach
 #ifndef NDEBUG
+#ifdef _POSIX_VERSION
   raise(SIGSTOP);
+#endif
   m65dap::M65DapSession session("/tmp/daplog.txt");
 #else
   m65dap::M65DapSession session;

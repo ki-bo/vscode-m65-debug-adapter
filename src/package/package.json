@@ -22,10 +22,46 @@
     "contributes": {
         "debuggers": [
             {
-                "type": "m65dbg_adapter",
+                "type": "mega65",
                 "program": "@m65dbg_filename@",
-                "label": "m65dbg adapter",
-                "configurationAttributes": {}
+                "label": "MEGA65 Serial Monitor",
+                "configurationAttributes": {
+                    "launch": {
+                        "required": ["program"],
+                        "properties": {
+                            "program": {
+                                "type": "string",
+                                "description": "Path to a prg file to launch and debug",
+                                "default": "${workspaceFolder}/build/main.prg"
+                            },
+                            "serialPort": {
+                                "type": "string",
+                                "description": "Serial port device or unix domain socket path (add prefix \"unix#\")",
+                                "default": ""
+                            },
+
+                            "resetBeforeRun": {
+                                "type": "boolean",
+                                "description": "Enables a reset of the device before the program is loaded and executed",
+                                "default": false
+                            },
+                            "resetAfterDisconnect": {
+                                "type": "boolean",
+                                "description": "Enables a reset of the device after the debugger is stopped",
+                                "default": true
+                            } 
+                        }
+                    }
+                },
+                "initialConfigurations": [
+                    {
+                        "name": "Launch MEGA65 prg",
+                        "type": "mega65",
+                        "request": "launch",
+                        "program": "${workspaceFolder}/build/main.prg",
+                        "serialPort": ""
+                    }
+                ]
             }
         ]
     }

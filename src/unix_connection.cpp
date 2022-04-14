@@ -49,28 +49,35 @@ auto UnixConnection::read_line(int timeout_ms) -> std::pair<std::string, bool>
 {
   std::size_t pos;
   char tmp[1024];
-  std::fill(tmp, tmp + 1024, 0xcb);
 
   Duration t;
 
   while ((pos = buffer_.find_first_of("\n")) == std::string::npos)
   {
-    if (!buffer_.empty() && buffer_.front() == '.')
-    {
-      // Prompt found, no eol will follow, treat it as line
-      DapLogger::debug_out("Prompt (.) found\n");
-      buffer_.erase(0, 1);
-      return { ".", false };
+    if (!buffer_.empty()) {
+      if (buffer_.front() == '.')
+      {
+        // Prompt found, no eol will follow, treat it as line
+        DapLogger::debug_out("Prompt (.) found\n");
+        buffer_.erase(0);
+        return { ".", false };
+      }
+      if (buffer_.front() == '!')
+      {
+        // Breakpoint found, no eol will follow, treat it as line
+        DapLogger::debug_out("Breakpoint trigger (!) found\n");
+        buffer_.erase(0);
+        return { "!", false };
+      }
     }
 
     auto read_bytes = ::read(fd_, tmp, 1024);
 
     if (read_bytes == 0 ||
-        (read_bytes == -1 && errno == EAGAIN))
+       (read_bytes == -1 && errno == EAGAIN))
     {
       if (t.elapsed_ms() > timeout_ms)
       {
-        DapLogger::debug_out("Timeout in read_line()\n");
         return { {}, true };
       }
       std::this_thread::sleep_for(1ms);
