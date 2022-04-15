@@ -1,27 +1,24 @@
 #pragma once
 
-namespace m65dap
-{
+namespace m65dap {
 
 class M65Debugger;
 
-class MemoryCache
-{
+class MemoryCache {
   M65Debugger* debugger_;
 
-  struct LineInfo
-  {
-    int table_idx {0};
-    int address {0};
-    bool valid {false};
-    bool accessed {false};
+  struct LineInfo {
+    int table_idx{0};
+    int address{0};
+    bool valid{false};
+    bool accessed{false};
   };
 
   std::vector<std::byte> data_;
   std::vector<LineInfo> lines_;
   std::map<int, LineInfo*> address_view_;
 
-public:
+ public:
   MemoryCache(M65Debugger* parent, int num_cache_lines = 512);
 
   void invalidate();
@@ -29,8 +26,8 @@ public:
 
   void refresh_accessed();
 
-private:
+ private:
   auto ensure_valid_cache_line(int line_address) -> LineInfo*;
 };
 
-} // namespace
+}  // namespace m65dap

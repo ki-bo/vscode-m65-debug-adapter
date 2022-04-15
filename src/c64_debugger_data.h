@@ -2,11 +2,9 @@
 
 #include <tinyxml2.h>
 
-namespace m65dap
-{
+namespace m65dap {
 
-struct BlockEntry
-{
+struct BlockEntry {
   int start;
   int end;
   int file_index;
@@ -16,24 +14,20 @@ struct BlockEntry
   int col2;
 };
 
-struct Block
-{
+struct Block {
   std::string name;
   std::vector<BlockEntry> entries;
-  int min_addr {0};
-  int max_addr {0};
+  int min_addr{0};
+  int max_addr{0};
 
   bool is_in_range(int addr) const { return addr >= min_addr && addr <= max_addr; }
   auto get_block_entry(int addr) const -> const BlockEntry*
   {
-    if (!is_in_range(addr))
-    {
+    if (!is_in_range(addr)) {
       return nullptr;
     }
-    for (const auto& e : entries)
-    {
-      if (addr >= e.start && addr <= e.end)
-      {
+    for (const auto& e : entries) {
+      if (addr >= e.start && addr <= e.end) {
         return &e;
       }
     }
@@ -41,21 +35,17 @@ struct Block
   }
 };
 
-struct Segment
-{
+struct Segment {
   std::string name;
   std::string dest;
   std::vector<Block> blocks;
 
   auto get_block_entry(int addr, std::string* block_name = nullptr) const -> const BlockEntry*
   {
-    for (const auto& b : blocks)
-    {
+    for (const auto& b : blocks) {
       auto entry = b.get_block_entry(addr);
-      if (entry != nullptr)
-      {
-        if (block_name)
-        {
+      if (entry != nullptr) {
+        if (block_name) {
           *block_name = b.name;
         }
         return entry;
@@ -63,11 +53,9 @@ struct Segment
     }
     return nullptr;
   }
-
 };
 
-struct LabelEntry
-{
+struct LabelEntry {
   std::string segment;
   int address;
   std::string name;
@@ -78,32 +66,30 @@ struct LabelEntry
   int col2;
 };
 
-class C64DebuggerData
-{
-
+class C64DebuggerData {
   std::map<int, std::string> files_;
   std::vector<Segment> segments_;
   std::vector<LabelEntry> labels_;
 
-public:
+ public:
   C64DebuggerData(const std::filesystem::path& dbg_file);
-  auto get_block_entry(int addr, 
-                       std::string* segment = nullptr, 
-                       std::string* block = nullptr) const -> const BlockEntry*;
+  auto get_block_entry(int addr, std::string* segment = nullptr, std::string* block = nullptr) const
+      -> const BlockEntry*;
   auto get_file(int idx) const -> std::string;
   auto get_file_index(const std::filesystem::path& src_path) const -> int;
   auto get_label_info(std::string_view label) const -> const LabelEntry*;
 
   /**
    * @brief Calculates next possible line number to set breakpoint starting at "line"
-   * 
+   *
    * @param src_path Source file to search in
    * @param line Starting line number to search for usable breakpoint line
-   * @return BlockEntry Matching BlockEntry with line and address info for the provided src/line info (nullptr if none available)
+   * @return BlockEntry Matching BlockEntry with line and address info for the provided src/line info (nullptr if none
+   * available)
    */
   auto eval_breakpoint_line(const std::filesystem::path& src_path, int line) const -> const BlockEntry*;
 
-private:
+ private:
   void parse_file_list(tinyxml2::XMLElement* root);
   void parse_segments(tinyxml2::XMLElement* root);
   auto parse_segment(tinyxml2::XMLElement* segment_element) -> Segment;
@@ -111,4 +97,4 @@ private:
   void parse_labels(tinyxml2::XMLElement* root);
 };
 
-} // namespace
+}  // namespace m65dap

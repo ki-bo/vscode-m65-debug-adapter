@@ -1,9 +1,8 @@
 #include <dap/io.h>
 
-
 #ifdef _WIN32
-#include <fcntl.h> // _O_BINARY
-#include <io.h>    // _setmode
+#include <fcntl.h>  // _O_BINARY
+#include <io.h>     // _setmode
 #endif
 #include <unistd.h>
 
@@ -29,7 +28,6 @@ int main()
 #else
   m65dap::M65DapSession session;
 #endif
-
 
   session.run();
 

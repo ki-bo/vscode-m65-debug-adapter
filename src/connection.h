@@ -1,11 +1,9 @@
 #pragma once
 
-namespace m65dap
-{
+namespace m65dap {
 
-class Connection
-{
-public:
+class Connection {
+ public:
   virtual ~Connection() = default;
 
   virtual void write(std::span<const char> buffer) = 0;
@@ -15,4 +13,4 @@ public:
   virtual void flush_rx_buffers() = 0;
 };
 
-} // namespace
+}  // namespace m65dap

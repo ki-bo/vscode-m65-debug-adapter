@@ -2,15 +2,11 @@
 
 #include "unix_connection.h"
 
-namespace m65dap
-{
+namespace m65dap {
 
-class SerialConnection : public UnixConnection
-{
-
-public:
+class SerialConnection : public UnixConnection {
+ public:
   SerialConnection(std::string_view port);
-
 };
 
-} // namespace
+}  // namespace m65dap

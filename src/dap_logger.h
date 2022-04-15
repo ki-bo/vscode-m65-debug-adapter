@@ -3,17 +3,15 @@
 #include <dap/io.h>
 #include <dap/session.h>
 
-namespace m65dap
-{
+namespace m65dap {
 
-class DapLogger
-{
+class DapLogger {
   std::shared_ptr<dap::Writer> log_file_;
-  dap::Session* session_ {nullptr};
+  dap::Session* session_{nullptr};
 
   DapLogger() = default;
 
-public:
+ public:
   static DapLogger& instance();
 
   static void write_log_file(std::string_view msg);
@@ -25,7 +23,6 @@ public:
   void register_session(dap::Session* session) { session_ = session; }
 
   auto get_file() -> std::shared_ptr<dap::Writer> { return log_file_; }
-
 };
 
-} // namespace
+}  // namespace m65dap

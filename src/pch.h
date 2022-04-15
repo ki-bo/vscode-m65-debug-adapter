@@ -1,3 +1,6 @@
+#include <fmt/core.h>
+#include <fmt/ranges.h>
+
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -17,16 +20,13 @@
 #include <ranges>
 #include <regex>
 #include <span>
-#include <stdexcept>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <thread>
 #include <type_traits>
 #include <vector>
-
-#include <fmt/core.h>
-#include <fmt/ranges.h>
 
 #include "exception.h"
 #include "util.h"

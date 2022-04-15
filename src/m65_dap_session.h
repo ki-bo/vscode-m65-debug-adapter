@@ -5,28 +5,26 @@
 
 #include "m65_debugger.h"
 
-namespace m65dap
-{
+namespace m65dap {
 
-class M65DapSession : public M65Debugger::EventHandlerInterface
-{
+class M65DapSession : public M65Debugger::EventHandlerInterface {
   std::unique_ptr<M65Debugger> debugger_;
   std::unique_ptr<dap::Session> session_;
   std::promise<void> exit_promise_;
-  bool client_supports_variable_type_ {false};
-  bool client_supports_memory_references_ {false};
+  bool client_supports_variable_type_{false};
+  bool client_supports_memory_references_{false};
 
-public:
+ public:
   M65DapSession(const std::filesystem::path& log_file = "");
-  
+
   void run();
 
   // Event handlers of M65Debugger
   void handle_debugger_stopped(M65Debugger::StoppedReason reason) override;
 
-private:
+ private:
   void register_error_handler();
   void register_request_handlers();
 };
 
-} // namespace
+}  // namespace m65dap

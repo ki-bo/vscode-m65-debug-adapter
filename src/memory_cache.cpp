@@ -1,22 +1,19 @@
 #include "memory_cache.h"
+
 #include "m65_debugger.h"
 
-namespace
-{
+namespace {
 
 const int bytes_per_cache_line = 512;
 
 }
 
-namespace m65dap
-{
+namespace m65dap {
 
-MemoryCache::MemoryCache(M65Debugger* parent, int num_cache_lines)
-  : debugger_(parent),
-    data_(num_cache_lines * bytes_per_cache_line),
-    lines_(num_cache_lines)
+MemoryCache::MemoryCache(M65Debugger* parent, int num_cache_lines) :
+    debugger_(parent), data_(num_cache_lines * bytes_per_cache_line), lines_(num_cache_lines)
 {
-  for (int idx {0}; idx < num_cache_lines; ++idx) {
+  for (int idx{0}; idx < num_cache_lines; ++idx) {
     lines_[idx].table_idx = idx;
   }
 }
@@ -26,16 +23,15 @@ void MemoryCache::refresh_accessed()
   for (auto& entry : address_view_) {
     if (entry.second->accessed) {
       ensure_valid_cache_line(entry.first);
-    } else {
+    }
+    else {
       entry.second->address = 0;
       entry.second->valid = false;
     }
     entry.second->accessed = false;
   }
   std::erase_if(address_view_,
-                [](const decltype(address_view_)::value_type& entry) {
-                  return !entry.second->accessed;
-                });
+                [](const decltype(address_view_)::value_type& entry) { return !entry.second->accessed; });
 }
 
 void MemoryCache::invalidate()
@@ -51,7 +47,7 @@ void MemoryCache::invalidate()
 void MemoryCache::read(int address, std::span<std::byte> target)
 {
   int line_address = address & ~(bytes_per_cache_line - 1);
-  int line_offset  = address % bytes_per_cache_line;
+  int line_offset = address % bytes_per_cache_line;
   int num_bytes = bytes_per_cache_line - line_offset;
   num_bytes = std::min(num_bytes, static_cast<int>(target.size()));
   auto target_it = target.begin();
@@ -63,8 +59,7 @@ void MemoryCache::read(int address, std::span<std::byte> target)
     std::copy(it, it + num_bytes, target_it);
     line_offset = 0;
     target_it += num_bytes;
-    num_bytes = std::min(static_cast<int>(std::distance(target_it, target.end())),
-                         bytes_per_cache_line);
+    num_bytes = std::min(static_cast<int>(std::distance(target_it, target.end())), bytes_per_cache_line);
   }
 }
 
@@ -94,4 +89,4 @@ auto MemoryCache::ensure_valid_cache_line(int line_address) -> LineInfo*
   return info;
 }
 
-} // namespace
+}  // namespace m65dap

@@ -1,47 +1,41 @@
 #include "unix_connection.h"
 
-#include "duration.h"
-#include "dap_logger.h"
-
 #include <unistd.h>
+
+#include "dap_logger.h"
+#include "duration.h"
 
 using namespace std::chrono_literals;
 
-namespace m65dap
-{
+namespace m65dap {
 
 void UnixConnection::write(std::span<const char> buffer)
 {
   int written = 0;
 
-  bool is_ascii = std::find_if(buffer.begin(), buffer.end(), [](const char c) { return static_cast<int>(c) <= 0; }) == buffer.end();
+  bool is_ascii =
+      std::find_if(buffer.begin(), buffer.end(), [](const char c) { return static_cast<int>(c) <= 0; }) == buffer.end();
 
-  if (is_ascii)
-  {
+  if (is_ascii) {
     std::string debug_str(buffer.data(), buffer.size());
     replace_all(debug_str, "\n", "\\n");
     replace_all(debug_str, "\r", "\\r");
     DapLogger::debug_out(fmt::format("-> \"{}\"\n", debug_str));
   }
-  else
-  {
+  else {
     DapLogger::debug_out(fmt::format("-> binary data (size {0:}/${0:X} bytes)\n", buffer.size_bytes()));
   }
 
-  while (written < buffer.size())
-  {
+  while (written < buffer.size()) {
     auto n = ::write(fd_, buffer.data() + written, buffer.size() - written);
-    if (n < 0 && errno != EAGAIN)
-    {
+    if (n < 0 && errno != EAGAIN) {
       throw std::runtime_error(fmt::format("Error writing to serial port: {}", strerror(errno)));
     }
-    else if (n > 0)
-    {
+    else if (n > 0) {
       written += n;
       assert(written <= buffer.size());
     }
-    else
-    {
+    else {
       std::this_thread::sleep_for(1ms);
     }
   }
@@ -54,42 +48,34 @@ auto UnixConnection::read_line(int timeout_ms) -> std::pair<std::string, bool>
 
   Duration t;
 
-  while ((pos = buffer_.find_first_of("\n")) == std::string::npos)
-  {
+  while ((pos = buffer_.find_first_of("\n")) == std::string::npos) {
     if (!buffer_.empty()) {
-      if (buffer_.front() == '.')
-      {
+      if (buffer_.front() == '.') {
         // Prompt found, no eol will follow, treat it as line
         DapLogger::debug_out("Prompt (.) found\n");
         buffer_.erase(0);
-        return { ".", false };
+        return {".", false};
       }
-      if (buffer_.front() == '!')
-      {
+      if (buffer_.front() == '!') {
         // Breakpoint found, no eol will follow, treat it as line
         DapLogger::debug_out("Breakpoint trigger (!) found\n");
         buffer_.erase(0);
-        return { "!", false };
+        return {"!", false};
       }
     }
 
     auto read_bytes = ::read(fd_, tmp, 1024);
 
-    if (read_bytes == 0 ||
-       (read_bytes == -1 && errno == EAGAIN))
-    {
-      if (t.elapsed_ms() > timeout_ms)
-      {
-        return { {}, true };
+    if (read_bytes == 0 || (read_bytes == -1 && errno == EAGAIN)) {
+      if (t.elapsed_ms() > timeout_ms) {
+        return {{}, true};
       }
       std::this_thread::sleep_for(1ms);
     }
-    else if (read_bytes < 0)
-    {
+    else if (read_bytes < 0) {
       DapLogger::debug_out(fmt::format("Error: {}\n", strerror(errno)));
     }
-    else
-    {
+    else {
       buffer_.append(tmp, read_bytes);
     }
   }
@@ -105,7 +91,7 @@ auto UnixConnection::read_line(int timeout_ms) -> std::pair<std::string, bool>
   replace_all(dbg_str, "\n", "\\n");
   replace_all(dbg_str, "\r", "\\r");
   DapLogger::debug_out(fmt::format("<- \"{}\"\n", dbg_str));
-  return { line, false };
+  return {line, false};
 }
 
 auto UnixConnection::read(int bytes_to_read, int timeout_ms) -> std::string
@@ -116,21 +102,17 @@ auto UnixConnection::read(int bytes_to_read, int timeout_ms) -> std::string
   std::string tmp;
   tmp.resize(bytes_to_read);
 
-  do
-  {
+  do {
     n = ::read(fd_, tmp.data() + sum, bytes_to_read - sum);
-    if (n > 0)
-    {
+    if (n > 0) {
       sum += n;
     }
-    else if (n < 0 && errno != EAGAIN)
-    {
+    else if (n < 0 && errno != EAGAIN) {
       throw std::runtime_error(fmt::format("MEGA65 debugger interface read error: {}", strerror(errno)));
     }
   } while (sum < bytes_to_read && t.elapsed_ms() < timeout_ms);
 
-  if (sum < bytes_to_read)
-  {
+  if (sum < bytes_to_read) {
     tmp.resize(sum);
   }
 
@@ -141,11 +123,10 @@ void UnixConnection::flush_rx_buffers()
 {
   // Do a dummy read of 64K to flush the buffer
   auto dummy_str = read(65536, 100);
-  if (!dummy_str.empty())
-  {
+  if (!dummy_str.empty()) {
     buffer_.clear();
     DapLogger::debug_out(fmt::format("Flushing rx buffer ({0:}/${0:X} bytes)\n", dummy_str.size()));
   }
 }
 
-} // namespace
+}  // namespace m65dap

@@ -1,23 +1,22 @@
 #pragma once
 
-namespace m65dap
-{
+namespace m65dap {
 
-class Duration
-{
+class Duration {
   using time_point = std::chrono::steady_clock::time_point;
 
   time_point start_time_;
 
-public:
+ public:
   Duration() : start_time_(std::chrono::steady_clock::now()) {}
 
   void reset() { start_time_ = std::chrono::steady_clock::now(); }
-  
-  auto elapsed_ms() { 
+
+  auto elapsed_ms()
+  {
     auto cur_time = std::chrono::steady_clock::now();
     return std::chrono::duration_cast<std::chrono::milliseconds>(cur_time - start_time_).count();
   }
 };
 
-} // namespace
+}  // namespace m65dap

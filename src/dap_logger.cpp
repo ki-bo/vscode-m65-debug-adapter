@@ -1,8 +1,8 @@
 #include "dap_logger.h"
+
 #include <dap/protocol.h>
 
-namespace m65dap
-{
+namespace m65dap {
 
 DapLogger& DapLogger::instance()
 {
@@ -18,8 +18,7 @@ void DapLogger::open_file(const std::filesystem::path& log_file_path)
 void DapLogger::debug_out(std::string_view msg)
 {
   auto inst = instance();
-  if (inst.session_)
-  {
+  if (inst.session_) {
     dap::OutputEvent event;
     event.output = msg;
     inst.session_->send(event);
@@ -29,10 +28,9 @@ void DapLogger::debug_out(std::string_view msg)
 void DapLogger::write_log_file(std::string_view msg)
 {
   auto inst = instance();
-  if (inst.log_file_)
-  {
+  if (inst.log_file_) {
     inst.log_file_->write(msg.data(), msg.length());
   }
 }
 
-} // namespace
+}  // namespace m65dap

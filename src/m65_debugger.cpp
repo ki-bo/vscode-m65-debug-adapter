@@ -1,4 +1,5 @@
 #include "m65_debugger.h"
+
 #include "dap_logger.h"
 #include "duration.h"
 #include "serial_connection.h"
@@ -6,36 +7,29 @@
 
 using namespace std::chrono_literals;
 
-namespace m65dap
-{
+namespace m65dap {
 
-M65Debugger::M65Debugger(std::string_view serial_port_device, 
+M65Debugger::M65Debugger(std::string_view serial_port_device,
                          EventHandlerInterface* event_handler,
                          bool reset_on_run,
                          bool reset_on_disconnect) :
-  event_handler_(event_handler),
-  memory_cache_(this),
-  reset_on_disconnect_(reset_on_disconnect)
+    event_handler_(event_handler), memory_cache_(this), reset_on_disconnect_(reset_on_disconnect)
 {
-  if (serial_port_device.starts_with("unix#"))
-  {
+  if (serial_port_device.starts_with("unix#")) {
     std::string_view socket_path = serial_port_device.substr(5);
     conn_ = std::make_unique<UnixDomainSocketConnection>(socket_path);
     is_xemu_ = true;
   }
-  else
-  {
+  else {
     conn_ = std::make_unique<SerialConnection>(serial_port_device);
   }
 
   sync_connection();
-  if (reset_on_run && !is_xemu_)
-  {
+  if (reset_on_run && !is_xemu_) {
     reset_target();
     std::this_thread::sleep_for(2s);
   }
-  else
-  {
+  else {
     // make sure serial debugger is not stopped
     execute_command("t0\n");
   }
@@ -45,8 +39,7 @@ M65Debugger::M65Debugger(std::string_view serial_port_device,
 
 M65Debugger::~M65Debugger()
 {
-  if (reset_on_disconnect_ && !is_xemu_)
-  {
+  if (reset_on_disconnect_ && !is_xemu_) {
     reset_target();
   }
 
@@ -81,9 +74,9 @@ void M65Debugger::pause()
     stopped_ = true;
     update_registers();
     memory_cache_.invalidate();
-    if (event_handler_)
-    {
-      auto f = std::async(std::launch::async, &EventHandlerInterface::handle_debugger_stopped, event_handler_, StoppedReason::Pause);
+    if (event_handler_) {
+      auto f = std::async(std::launch::async, &EventHandlerInterface::handle_debugger_stopped, event_handler_,
+                          StoppedReason::Pause);
       f.wait();
     }
     return {};
@@ -111,9 +104,9 @@ void M65Debugger::next()
       update_registers();
     }
     memory_cache_.refresh_accessed();
-    if (event_handler_)
-    {
-      auto f = std::async(std::launch::async, &EventHandlerInterface::handle_debugger_stopped, event_handler_,StoppedReason::Step);
+    if (event_handler_) {
+      auto f = std::async(std::launch::async, &EventHandlerInterface::handle_debugger_stopped, event_handler_,
+                          StoppedReason::Step);
       f.wait();
     }
     return {};
@@ -126,17 +119,13 @@ void M65Debugger::set_breakpoint(const std::filesystem::path& src_path, int line
     if (!dbg_data_) {
       throw std::runtime_error("Can't set breakpoint, no debug symbols loaded");
     }
-    
+
     auto dbg_block_entry = dbg_data_->eval_breakpoint_line(src_path, line);
     if (!dbg_block_entry) {
       throw std::runtime_error(fmt::format("Can't set breakpoint at {}:{}", src_path.native(), line));
     }
 
-    Breakpoint b {
-      .src_path = src_path,
-      .line = dbg_block_entry->line1,
-      .pc = dbg_block_entry->start
-    };
+    Breakpoint b{.src_path = src_path, .line = dbg_block_entry->line1, .pc = dbg_block_entry->start};
     execute_command(fmt::format("b{:X}\n", b.pc));
     breakpoint_ = std::make_optional<Breakpoint>(std::move(b));
     return {};
@@ -149,21 +138,6 @@ void M65Debugger::clear_breakpoint()
   breakpoint_.reset();
 }
 
-auto M65Debugger::get_breakpoint() const -> std::optional<Breakpoint>
-{
-  return breakpoint_;
-}
-
-auto M65Debugger::get_registers() -> Registers
-{
-  return current_registers_;
-}
-
-auto M65Debugger::get_pc() -> int
-{
-  return current_registers_.pc;
-}
-
 auto M65Debugger::get_current_source_position() -> SourcePosition
 {
   SourcePosition result;
@@ -172,15 +146,12 @@ auto M65Debugger::get_current_source_position() -> SourcePosition
     return result;
   }
 
-  auto entry = dbg_data_->get_block_entry(current_registers_.pc, 
-                                          &result.segment,
-                                          &result.block);
-  if (entry)
-  {
+  auto entry = dbg_data_->get_block_entry(current_registers_.pc, &result.segment, &result.block);
+  if (entry) {
     result.src_path = dbg_data_->get_file(entry->file_index);
     result.line = entry->line1;
   }
-  return result;  
+  return result;
 }
 
 auto M65Debugger::evaluate_expression(std::string_view expression, bool format_as_hex) -> EvaluateResult
@@ -192,29 +163,32 @@ auto M65Debugger::evaluate_expression(std::string_view expression, bool format_a
       return result;
     }
 
-    static const std::regex direct_regex  (R"(^\s*(\w+)(?:\s*,\s*([xyz]))?(?:\s*,\s*([bwq]))?(?:\s*,\s*(\d+))?\s*$)", 
-                                     std::regex::icase | std::regex::optimize);
-    static const std::regex indirect_regex(R"(^\s*\(\s*(\w+)\s*\)(?:\s*,\s*([xyz]))?(?:\s*,\s*([bwq]))?(?:\s*,\s*(\d+))?\s*$)", 
-                                     std::regex::icase | std::regex::optimize);
-    
+    static const std::regex direct_regex(R"(^\s*(\w+)(?:\s*,\s*([xyz]))?(?:\s*,\s*([bwq]))?(?:\s*,\s*(\d+))?\s*$)",
+                                         std::regex::icase | std::regex::optimize);
+    static const std::regex indirect_regex(
+        R"(^\s*\(\s*(\w+)\s*\)(?:\s*,\s*([xyz]))?(?:\s*,\s*([bwq]))?(?:\s*,\s*(\d+))?\s*$)",
+        std::regex::icase | std::regex::optimize);
+
     std::smatch match;
     std::string expression_str(expression);
 
     bool indirect;
     if (std::regex_search(expression_str, match, direct_regex)) {
       indirect = false;
-    } else if (std::regex_search(expression_str, match, indirect_regex)) {
+    }
+    else if (std::regex_search(expression_str, match, indirect_regex)) {
       indirect = true;
-    } else {
+    }
+    else {
       return result;
     }
 
-    const auto& label_match        = match[1];
-    const auto& index_match        = match[2];
-    const auto& type_match         = match[3];
+    const auto& label_match = match[1];
+    const auto& index_match = match[2];
+    const auto& type_match = match[3];
     const auto& num_elements_match = match[4];
 
-    int type_size {1};
+    int type_size{1};
     if (type_match.matched) {
       char type_char = type_match.str().front();
       switch (type_char) {
@@ -232,9 +206,9 @@ auto M65Debugger::evaluate_expression(std::string_view expression, bool format_a
       }
     }
 
-    std::string_view label {label_match.str()};
+    std::string_view label{label_match.str()};
 
-    int num_elements {1};
+    int num_elements{1};
     if (num_elements_match.matched) {
       num_elements = std::min(256, std::atoi(num_elements_match.str().c_str()));
     }
@@ -251,24 +225,21 @@ auto M65Debugger::evaluate_expression(std::string_view expression, bool format_a
     switch (type_size) {
       case 1:
         result.result_string.reserve(3 * num_elements);
-        for (int idx {0}; idx < num_elements; ++idx) {
+        for (int idx{0}; idx < num_elements; ++idx) {
           result.result_string.append(fmt::format("{:0>2X} ", tmp[idx]));
         }
         break;
       case 2:
         result.result_string.reserve(5 * num_elements);
-        for (int idx {0}; idx < num_elements; ++idx) {
+        for (int idx{0}; idx < num_elements; ++idx) {
           result.result_string.append(fmt::format("{:0>2X}{:0>2X} ", tmp[idx + 1], tmp[idx]));
         }
         break;
       case 4:
         result.result_string.reserve(9 * num_elements);
-        for (int idx {0}; idx < num_elements; ++idx) {
-          result.result_string.append(fmt::format("{:0>2X}{:0>2X}{:0>2X}{:0>2X} ", 
-                                                  tmp[idx + 3], 
-                                                  tmp[idx + 2],
-                                                  tmp[idx + 1],
-                                                  tmp[idx]));
+        for (int idx{0}; idx < num_elements; ++idx) {
+          result.result_string.append(
+              fmt::format("{:0>2X}{:0>2X}{:0>2X}{:0>2X} ", tmp[idx + 3], tmp[idx + 2], tmp[idx + 1], tmp[idx]));
         }
         break;
     }
@@ -302,13 +273,12 @@ void M65Debugger::main_loop(std::future<void> future_exit_object)
       check_breakpoint_by_pc();
       duration_since_last_interaction.reset();
     }
-  }
-  while (future_exit_object.wait_for(10ms) == std::future_status::timeout);
+  } while (future_exit_object.wait_for(10ms) == std::future_status::timeout);
 }
 
 void M65Debugger::do_event_processing()
 {
-  auto result = conn_->read_line(0); 
+  auto result = conn_->read_line(0);
   if (result.second) {
     // No line available now
     return;
@@ -318,7 +288,7 @@ void M65Debugger::do_event_processing()
   if (line != "!" && !line.empty()) {
     throw std::runtime_error("Unexpected breakpoint trigger response");
   }
-  
+
   std::vector<std::string> lines;
   if (is_xemu_) {
     result = conn_->read_line();
@@ -336,7 +306,8 @@ void M65Debugger::do_event_processing()
     if (!lines.back().starts_with(",0777")) {
       throw std::runtime_error("Expected register header in breakpoint response");
     }
-  } else {
+  }
+  else {
     // Real HW monitor
     lines = get_lines_until_prompt();
   }
@@ -353,7 +324,8 @@ void M65Debugger::check_breakpoint_by_pc()
   if (current_registers_.pc == breakpoint_->pc) {
     stopped_ = true;
     if (event_handler_) {
-      auto f = std::async(std::launch::async, &EventHandlerInterface::handle_debugger_stopped, event_handler_, StoppedReason::Breakpoint);
+      auto f = std::async(std::launch::async, &EventHandlerInterface::handle_debugger_stopped, event_handler_,
+                          StoppedReason::Breakpoint);
       f.wait();
     }
   }
@@ -364,40 +336,33 @@ void M65Debugger::sync_connection()
   int retries = 10;
   bool first_try = true;
 
-  while (retries-- > 0)
-  {
+  while (retries-- > 0) {
     auto cmd = is_xemu_ ? std::string("?\n") : fmt::format("?{}\n", retries);
     conn_->write(cmd);
     auto reply = conn_->read_line(500);
-    if (reply.second)
-    {
+    if (reply.second) {
       // timeout
       DapLogger::debug_out(fmt::format("sync_connection() timeout, retries={}\n", retries));
     }
-    else if (reply.first == cmd.substr(0, cmd.length() - 1))
-    {
+    else if (reply.first == cmd.substr(0, cmd.length() - 1)) {
       std::vector<std::string> lines;
       bool timeout = false;
 
-      try
-      {
+      try {
         lines = get_lines_until_prompt();
       }
-      catch(const timeout_error&)
-      {
-        timeout = true;  
+      catch (const timeout_error&) {
+        timeout = true;
       }
-      
+
       const std::string ident = is_xemu_ ? "Xemu/MEGA65 Serial Monitor" : "MEGA65 Serial Monitor";
-      if (!timeout && lines.front().starts_with(ident))
-      {
+      if (!timeout && lines.front().starts_with(ident)) {
         DapLogger::debug_out(" === Successfully synced with target debugger ===\n");
         return;
       }
     }
 
-    if (first_try && reply.second)
-    {
+    if (first_try && reply.second) {
       first_try = false;
       // write dummy data to exit hanging 'l' command
       std::array<char, 65536> dummy_array;
@@ -407,7 +372,7 @@ void M65Debugger::sync_connection()
     }
     conn_->flush_rx_buffers();
   }
-  
+
   throw std::runtime_error("Unable to sync with Mega65 debugger interface");
 }
 
@@ -418,14 +383,12 @@ void M65Debugger::reset_target()
 
   auto reply = conn_->read(4);
   auto expected = is_xemu_ ? "!\r\n?" : "!\r\n@";
-  if (reply.empty() || reply != expected)
-  {
+  if (reply.empty() || reply != expected) {
     throw std::runtime_error("Unable to reset target");
   }
 
   reply = conn_->read(1, 10000);
-  if (reply.empty())
-  {
+  if (reply.empty()) {
     throw std::runtime_error("Unable to reset target");
   }
   conn_->flush_rx_buffers();
@@ -444,10 +407,11 @@ void M65Debugger::update_registers()
 auto M65Debugger::update_registers(std::vector<std::string> lines) -> bool
 {
   auto it = lines.begin();
-  for (; it != lines.end() && it->empty(); ++it);
+  for (; it != lines.end() && it->empty(); ++it)
+    ;
   if (it == lines.end()) {
     return false;
-  } 
+  }
 
   if (!it->starts_with("PC   A  X  Y  Z  B  SP")) {
     return false;
@@ -482,10 +446,8 @@ auto M65Debugger::update_registers(std::vector<std::string> lines) -> bool
 
   int val = 0b10000000;
   current_registers_.flags = 0;
-  for (int i = 0; i < 7; ++i)
-  {
-    if (current_registers_.flags_string[i] != '.')
-    {
+  for (int i = 0; i < 7; ++i) {
+    if (current_registers_.flags_string[i] != '.') {
       current_registers_.flags |= val;
     }
     val >>= 1;
@@ -497,12 +459,10 @@ auto M65Debugger::update_registers(std::vector<std::string> lines) -> bool
 void M65Debugger::upload_prg_file(const std::filesystem::path& prg_path)
 {
   auto file_size = std::filesystem::file_size(prg_path);
-  if (file_size > 65536)
-  {
+  if (file_size > 65536) {
     throw std::runtime_error(fmt::format("File size >64KB not supported"));
   }
-  if (file_size < 3)
-  {
+  if (file_size < 3) {
     throw std::runtime_error("PRG file is too small");
   }
 
@@ -510,11 +470,9 @@ void M65Debugger::upload_prg_file(const std::filesystem::path& prg_path)
   prg_data.reserve(file_size);
 
   std::ifstream prg_file(prg_path, std::ios::binary);
-  prg_data.assign(std::istreambuf_iterator<char>(prg_file),
-                  std::istreambuf_iterator<char>());
+  prg_data.assign(std::istreambuf_iterator<char>(prg_file), std::istreambuf_iterator<char>());
 
-  int load_address = static_cast<int>(prg_data[0]) +
-                     static_cast<int>(prg_data[1]) * 256;
+  int load_address = static_cast<int>(prg_data[0]) + static_cast<int>(prg_data[1]) * 256;
 
   std::span<char> payload(prg_data.data() + 2, prg_data.size() - 2);
 
@@ -539,32 +497,26 @@ void M65Debugger::simulate_keypresses(std::string_view keys)
   int count = 0;
   std::string cmd;
 
-  auto finalize_cmd = 
-    [&]() 
-    {
-      cmd += '\n';
-      execute_command(cmd);
-      cmd = fmt::format("s{:X} {:X}\n", 0xd0, count); // set number of keys in keyboard buffer
-      execute_command(cmd);
-    };
+  auto finalize_cmd = [&]() {
+    cmd += '\n';
+    execute_command(cmd);
+    cmd = fmt::format("s{:X} {:X}\n", 0xd0, count);  // set number of keys in keyboard buffer
+    execute_command(cmd);
+  };
 
-  for (auto& key : keys)
-  {
-    if (count == 0)
-    {
-      cmd = fmt::format("s{:X}", 0x2b0); // write bytes to keyboard buffer address
+  for (auto& key : keys) {
+    if (count == 0) {
+      cmd = fmt::format("s{:X}", 0x2b0);  // write bytes to keyboard buffer address
     }
     cmd += fmt::format(" {:0>2X}", static_cast<int>(key));
     ++count;
-    if (count == max_per_line)
-    {
+    if (count == max_per_line) {
       finalize_cmd();
       count = 0;
     }
   }
 
-  if (count > 0)
-  {
+  if (count > 0) {
     finalize_cmd();
   }
 }
@@ -573,8 +525,7 @@ auto M65Debugger::get_lines_until_prompt() -> std::vector<std::string>
 {
   std::vector<std::string> lines;
 
-  while (true)
-  {
+  while (true) {
     auto result = conn_->read_line();
     throw_if<timeout_error>(result.second, "Timeout reading line");
 
@@ -590,16 +541,13 @@ std::vector<std::string> M65Debugger::execute_command(std::string_view cmd)
 {
   conn_->write(cmd);
 
-  while (true)
-  {
+  while (true) {
     auto lines = get_lines_until_prompt();
-    if (lines.empty())
-    {
+    if (lines.empty()) {
       throw std::runtime_error("Expected echo of cmd, but received empty reply before prompt");
     }
 
-    if (lines.front() == cmd.substr(0, cmd.length() - 1))
-    {
+    if (lines.front() == cmd.substr(0, cmd.length() - 1)) {
       // first line matches our cmd, this is our response data
       lines.erase(lines.begin());
       return lines;
@@ -619,14 +567,15 @@ void M65Debugger::process_async_event(std::vector<std::string>& lines)
 
   DapLogger::debug_out("Breakpoint triggered\n");
   if (!update_registers(lines) || current_registers_.pc != breakpoint_->pc) {
-    execute_command("t0\n");      
+    execute_command("t0\n");
     return;
   }
 
   memory_cache_.invalidate();
   stopped_ = true;
   if (event_handler_) {
-    auto f = std::async(std::launch::async, &EventHandlerInterface::handle_debugger_stopped, event_handler_, StoppedReason::Breakpoint);
+    auto f = std::async(std::launch::async, &EventHandlerInterface::handle_debugger_stopped, event_handler_,
+                        StoppedReason::Breakpoint);
     f.wait();
   }
 }
@@ -642,7 +591,8 @@ void M65Debugger::get_memory_bytes(int address, std::span<std::byte> target)
     std::vector<std::string> lines;
     if (count - pos <= bytes_per_line) {
       lines = execute_command(fmt::format("m{:X}\n", address));
-    } else {
+    }
+    else {
       lines = execute_command(fmt::format("M{:X}\n", address));
     }
     for (const auto& line : lines) {
@@ -662,14 +612,14 @@ void M65Debugger::get_memory_bytes(int address, std::span<std::byte> target)
 
 auto M65Debugger::parse_address_line(std::string_view mem_string, std::span<std::byte> target) -> int
 {
-  assert(target.size() <= 16); 
+  assert(target.size() <= 16);
   static const std::regex r(R"(^:([0-9A-F]{1,8}):([0-9A-F]{32})$)", std::regex::optimize);
   std::cmatch match;
   throw_if<std::runtime_error>(!std::regex_search(mem_string.cbegin(), mem_string.cend(), match, r),
                                "Unexpected memory read response");
   auto ret_addr = str_to_int(match[1].str(), 16);
-  
-  auto mem_bytes_it {match[2].first};
+
+  auto mem_bytes_it{match[2].first};
   for (auto& val : target) {
     val = static_cast<std::byte>(str_to_int(std::string_view(mem_bytes_it, 2), 16));
     mem_bytes_it += 2;
@@ -678,4 +628,4 @@ auto M65Debugger::parse_address_line(std::string_view mem_string, std::span<std:
   return ret_addr;
 }
 
-} // namespace
+}  // namespace m65dap

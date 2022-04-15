@@ -2,13 +2,11 @@
 
 #include "unix_connection.h"
 
-namespace m65dap
-{
+namespace m65dap {
 
-class UnixDomainSocketConnection : public UnixConnection
-{
-public:
+class UnixDomainSocketConnection : public UnixConnection {
+ public:
   UnixDomainSocketConnection(const std::filesystem::path& path);
 };
 
-} // namespace
+}  // namespace m65dap
