@@ -662,15 +662,17 @@ void M65Debugger::get_memory_bytes(int address, std::span<std::byte> target)
 
 auto M65Debugger::parse_address_line(std::string_view mem_string, std::span<std::byte> target) -> int
 {
-  if (mem_string.empty() || mem_string.length() != 41 || !mem_string.starts_with(":")) {
-    throw std::runtime_error("Unexpected memory read response");
-  }
-  auto ret_addr = str_to_int(mem_string.substr(1, 7), 16);
+  assert(target.size() <= 16); 
+  static const std::regex r(R"(^:([0-9A-F]{1,8}):([0-9A-F]{32})$)", std::regex::optimize);
+  std::cmatch match;
+  throw_if<std::runtime_error>(!std::regex_search(mem_string.cbegin(), mem_string.cend(), match, r),
+                               "Unexpected memory read response");
+  auto ret_addr = str_to_int(match[1].str(), 16);
   
-  int str_pos = 9;
+  auto mem_bytes_it {match[2].first};
   for (auto& val : target) {
-    val = static_cast<std::byte>(str_to_int(mem_string.substr(str_pos, 2), 16));
-    str_pos += 2;
+    val = static_cast<std::byte>(str_to_int(std::string_view(mem_bytes_it, 2), 16));
+    mem_bytes_it += 2;
   }
 
   return ret_addr;
