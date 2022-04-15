@@ -18,7 +18,9 @@ void UnixConnection::write(std::span<const char> buffer)
 
   if (is_ascii)
   {
-    std::string_view debug_str(buffer.data(), buffer.size());
+    std::string debug_str(buffer.data(), buffer.size());
+    replace_all(debug_str, "\n", "\\n");
+    replace_all(debug_str, "\r", "\\r");
     DapLogger::debug_out(fmt::format("-> \"{}\"\n", debug_str));
   }
   else
@@ -99,7 +101,10 @@ auto UnixConnection::read_line(int timeout_ms) -> std::pair<std::string, bool>
   }
   last_line_was_empty_ = line.empty();
 
-  DapLogger::debug_out(fmt::format("<- \"{}\"\n", line));
+  auto dbg_str = line;
+  replace_all(dbg_str, "\n", "\\n");
+  replace_all(dbg_str, "\r", "\\r");
+  DapLogger::debug_out(fmt::format("<- \"{}\"\n", dbg_str));
   return { line, false };
 }
 
