@@ -26,6 +26,7 @@
 #include <vector>
 
 #include <fmt/core.h>
+#include <fmt/ranges.h>
 
 #include "exception.h"
 #include "util.h"

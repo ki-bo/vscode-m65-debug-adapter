@@ -75,3 +75,5 @@ if(NOT VSCE_PROGRAM MATCHES "VSCE_PROGRAM-NOTFOUND")
         DEPENDS ${vsix_out}
     )
 endif()
+
+add_subdirectory(test)
