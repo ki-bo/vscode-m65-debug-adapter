@@ -15,16 +15,16 @@ M65Debugger::M65Debugger(std::string_view serial_port_device,
                          bool reset_on_disconnect) :
     event_handler_(event_handler), memory_cache_(this), reset_on_disconnect_(reset_on_disconnect)
 {
-  std::unique_ptr<Connection> new_connection;
   if (serial_port_device.starts_with("unix#")) {
     std::string_view socket_path = serial_port_device.substr(5);
-    new_connection = std::make_unique<UnixDomainSocketConnection>(socket_path);
+    conn_ = std::make_unique<UnixDomainSocketConnection>(socket_path);
     is_xemu_ = true;
   }
   else {
-    new_connection = std::make_unique<SerialConnection>(serial_port_device);
+    conn_ = std::make_unique<SerialConnection>(serial_port_device);
   }
-  M65Debugger(std::move(new_connection), event_handler, reset_on_run, reset_on_disconnect);
+  
+  initialize(reset_on_run);
 }
 
 M65Debugger::M65Debugger(std::unique_ptr<Connection> connection,
@@ -36,27 +36,16 @@ M65Debugger::M65Debugger(std::unique_ptr<Connection> connection,
     memory_cache_(this),
     reset_on_disconnect_(reset_on_disconnect)
 {
-  sync_connection();
-  if (reset_on_run && !is_xemu_) {
-    reset_target();
-    std::this_thread::sleep_for(2s);
-  }
-  else {
-    // make sure serial debugger is not stopped
-    execute_command("t0\n");
-  }
-
-  main_loop_thread_ = std::thread(&M65Debugger::main_loop, this, std::move(main_loop_exit_signal_.get_future()));
+  initialize(reset_on_run);
 }
 
 M65Debugger::~M65Debugger()
 {
+  main_loop_exit_signal_.set_value();
+  main_loop_thread_.join();
   if (reset_on_disconnect_ && !is_xemu_) {
     reset_target();
   }
-
-  main_loop_exit_signal_.set_value();
-  main_loop_thread_.join();
 }
 
 void M65Debugger::set_target(const std::filesystem::path& prg_path)
@@ -260,6 +249,21 @@ auto M65Debugger::evaluate_expression(std::string_view expression, bool format_a
   });
 
   return std::get<EvaluateResult>(task_result.value());
+}
+
+void M65Debugger::initialize(bool reset_on_run)
+{
+  sync_connection();
+  if (reset_on_run && !is_xemu_) {
+    reset_target();
+    std::this_thread::sleep_for(2s);
+  }
+  else {
+    // make sure serial debugger is not stopped
+    execute_command("t0\n");
+  }
+
+  main_loop_thread_ = std::thread(&M65Debugger::main_loop, this, std::move(main_loop_exit_signal_.get_future()));
 }
 
 void M65Debugger::main_loop(std::future<void> future_exit_object)
@@ -608,6 +612,9 @@ void M65Debugger::get_memory_bytes(int address, std::span<std::byte> target)
       lines = execute_command(fmt::format("M{:X}\n", address));
     }
     for (const auto& line : lines) {
+      if (line.empty()) {
+        continue;
+      }
       if (pos >= count) {
         break;
       }

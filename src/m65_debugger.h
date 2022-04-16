@@ -111,6 +111,7 @@ class M65Debugger {
   auto evaluate_expression(std::string_view expression, bool format_as_hex) -> EvaluateResult;
 
  private:
+  void initialize(bool reset_on_run);
   void main_loop(std::future<void> future_exit_object);
   void do_event_processing();
   void check_breakpoint_by_pc();

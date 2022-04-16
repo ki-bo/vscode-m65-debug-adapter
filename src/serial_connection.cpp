@@ -27,7 +27,7 @@ SerialConnection::SerialConnection(std::string_view port)
 #ifdef __APPLE__
   if (tcgetattr(fd_, &tty)) throw std::runtime_error("Failed to get terminal parameters");
   tty.c_cc[VMIN] = 0;
-  tty.c_cc[VTIME] = 5;  // 0.5 seconds read timeout
+  tty.c_cc[VTIME] = 0;
 
   if (tcsetattr(fd_, TCSANOW, &tty)) throw std::runtime_error(fmt::format("error {} from tcsetattr", strerror(errno)));
 

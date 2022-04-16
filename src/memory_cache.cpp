@@ -4,7 +4,7 @@
 
 namespace {
 
-const int bytes_per_cache_line = 512;
+const int bytes_per_cache_line = 256;
 
 }
 

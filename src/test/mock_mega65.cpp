@@ -135,7 +135,7 @@ auto MockMega65::parse_memory_cmd(std::string_view line) -> bool
     output_buffer_.append(fmt::format(":{:08X}:{:02X}{}", address, fmt::join(mem_range, ""), eol_str));
     address += 16;
   }
-  output_buffer_.append(".");
+  output_buffer_.append(eol_str).append(".");
   return true;
 }
 

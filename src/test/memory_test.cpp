@@ -20,6 +20,16 @@ TEST_F(Mega65Fixture, MemoryRead)
     EXPECT_EQ(line.first, expected_line);
     addr += 16;
   }
+
+  line = conn.read_line();
+  EXPECT_FALSE(line.second);
+  EXPECT_EQ(line.first, "");
+  line = conn.read_line();
+  EXPECT_FALSE(line.second);
+  EXPECT_EQ(line.first, ".");
+  line = conn.read_line();
+  EXPECT_TRUE(line.second);
+  EXPECT_EQ(line.first, "");
 }
 
 TEST_F(Mega65Fixture, LoadDataOneShot)
