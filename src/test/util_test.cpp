@@ -1,8 +1,8 @@
 #include "util.h"
+
 #include <gtest/gtest.h>
 
-namespace m65dap::test
-{
+namespace m65dap::test {
 
 TEST(UtilSuite, ReplaceAllTest)
 {
@@ -39,4 +39,4 @@ TEST(UtilSuite, ReplaceAllNoMatchTest)
   EXPECT_EQ(str, "The quick brown fox jumps over the lazy dog.");
 }
 
-} // namespace
+}  // namespace m65dap::test

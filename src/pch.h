@@ -15,6 +15,7 @@
 #include <iterator>
 #include <map>
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <queue>
 #include <ranges>

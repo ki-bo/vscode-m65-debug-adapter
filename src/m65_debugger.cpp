@@ -15,15 +15,27 @@ M65Debugger::M65Debugger(std::string_view serial_port_device,
                          bool reset_on_disconnect) :
     event_handler_(event_handler), memory_cache_(this), reset_on_disconnect_(reset_on_disconnect)
 {
+  std::unique_ptr<Connection> new_connection;
   if (serial_port_device.starts_with("unix#")) {
     std::string_view socket_path = serial_port_device.substr(5);
-    conn_ = std::make_unique<UnixDomainSocketConnection>(socket_path);
+    new_connection = std::make_unique<UnixDomainSocketConnection>(socket_path);
     is_xemu_ = true;
   }
   else {
-    conn_ = std::make_unique<SerialConnection>(serial_port_device);
+    new_connection = std::make_unique<SerialConnection>(serial_port_device);
   }
+  M65Debugger(std::move(new_connection), event_handler, reset_on_run, reset_on_disconnect);
+}
 
+M65Debugger::M65Debugger(std::unique_ptr<Connection> connection,
+                         EventHandlerInterface* event_handler,
+                         bool reset_on_run,
+                         bool reset_on_disconnect) :
+    conn_(std::move(connection)),
+    event_handler_(event_handler),
+    memory_cache_(this),
+    reset_on_disconnect_(reset_on_disconnect)
+{
   sync_connection();
   if (reset_on_run && !is_xemu_) {
     reset_target();

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "mock_mega65.h"
+#include "test_common.h"
 
 namespace m65dap::test {
 
@@ -21,18 +22,16 @@ TEST_F(Mega65Fixture, InvalidWrite)
 
 TEST_F(Mega65Fixture, ReadHelpResponse)
 {
-  conn.write("?\n");
-  auto line = conn.read_line();
-  EXPECT_FALSE(line.second);
-  EXPECT_EQ(line.first, "MEGA65 Serial Monitor");
+  std::string cmd = "?";
+  const std::vector<std::string> expected{{"?"}, {"MEGA65 Serial Monitor"}, {"."}};
+  test_command(conn, cmd, expected);
+}
 
-  line = conn.read_line();
-  EXPECT_FALSE(line.second);
-  EXPECT_EQ(line.first, ".");
-
-  line = conn.read_line();
-  EXPECT_TRUE(line.second);
-  EXPECT_TRUE(line.first.empty());
+TEST_F(Mega65Fixture, ReadHelpResponseWithOptionalNumber)
+{
+  std::string cmd = "?77";
+  const std::vector<std::string> expected{{"?77"}, {"MEGA65 Serial Monitor"}, {"."}};
+  test_command(conn, cmd, expected);
 }
 
 }  // namespace m65dap::test

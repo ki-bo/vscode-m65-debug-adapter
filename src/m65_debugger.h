@@ -90,6 +90,11 @@ class M65Debugger {
               bool reset_on_run = false,
               bool reset_on_disconnect = true);
 
+  M65Debugger(std::unique_ptr<Connection> connection,
+              EventHandlerInterface* event_handler,
+              bool reset_on_run = false,
+              bool reset_on_disconnect = true);
+
   ~M65Debugger();
 
   void set_target(const std::filesystem::path& prg_path);

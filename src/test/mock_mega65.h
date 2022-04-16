@@ -7,8 +7,11 @@
 namespace m65dap::test::mock {
 
 class MockMega65 : public Connection {
-  std::queue<std::string> lines_;
-  std::vector<char> memory_;
+  std::string output_buffer_;
+  std::vector<uint8_t> memory_;
+  bool trace_mode_{false};
+  int load_addr_{0};
+  int load_remaining_bytes_{0};
 
  public:
   MockMega65();
@@ -20,7 +23,12 @@ class MockMega65 : public Connection {
   void flush_rx_buffers() override final;
 
  private:
+  auto process_load_bytes(std::span<const char> buffer) -> std::span<const char>;
+  auto parse_help_cmd(std::string_view line) -> bool;
   auto parse_memory_cmd(std::string_view line) -> bool;
+  auto parse_trace_cmd(std::string_view line) -> bool;
+  auto parse_reset_cmd(std::string_view line) -> bool;
+  auto parse_load_cmd(std::string_view line) -> bool;
 };
 
 }  // namespace m65dap::test::mock
@@ -28,6 +36,7 @@ class MockMega65 : public Connection {
 namespace m65dap::test {
 
 struct Mega65Fixture : public ::testing::Test {
+ protected:
   mock::MockMega65 conn;
 };
 

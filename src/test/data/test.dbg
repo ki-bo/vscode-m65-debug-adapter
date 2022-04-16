@@ -1,0 +1,45 @@
+<C64debugger version="1.0">
+   <Sources values="INDEX,FILE">
+      0,KickAss.jar:/include/autoinclude.asm
+      1,/Users/robert/coding/mega65/vscode-m65-debug-adapter/src/test/data/test_main.asm
+   </Sources>
+
+   <Segment name="Default" dest="" values="START,END,FILE_IDX,LINE1,COL1,LINE2,COL2">
+   </Segment>
+
+   <Segment name="BasicUpstart" dest="" values="START,END,FILE_IDX,LINE1,COL1,LINE2,COL2">
+      <Block name="BasicUpstartMega65">
+         $2001,$2002,1,9,17,9,21
+         $2003,$2004,1,10,17,10,21
+         $2005,$2008,1,11,17,11,21
+         $2009,$200a,1,12,17,12,21
+         $200b,$200c,1,13,17,13,21
+         $200d,$200d,1,14,17,14,21
+         $200e,$2011,1,16,17,16,21
+         $2012,$2012,1,17,17,17,21
+         $2013,$2014,1,19,15,19,19
+      </Block>
+   </Segment>
+
+   <Segment name="Code" dest="" values="START,END,FILE_IDX,LINE1,COL1,LINE2,COL2">
+      <Block name="Main">
+         $2016,$2017,1,24,17,24,19
+         $2018,$2019,1,25,17,25,19
+         $201a,$201b,1,26,17,26,19
+         $201c,$201d,1,27,17,27,19
+         $201e,$2020,1,29,17,29,19
+      </Block>
+   </Segment>
+
+   <Labels values="SEGMENT,ADDRESS,NAME,START,END,FILE_IDX,LINE1,COL1,LINE2,COL2">
+      BasicUpstart,$2013,end,1,18,1,18,4
+      Code,$2016,Entry,1,23,1,23,6
+   </Labels>
+
+   <Breakpoints values="SEGMENT,ADDRESS,ARGUMENT">
+   </Breakpoints>
+
+   <Watchpoints values="SEGMENT,ADDRESS1,ADDRESS2,ARGUMENT">
+   </Watchpoints>
+
+</C64debugger>
