@@ -23,7 +23,7 @@ M65Debugger::M65Debugger(std::string_view serial_port_device,
   else {
     conn_ = std::make_unique<SerialConnection>(serial_port_device);
   }
-  
+
   initialize(reset_on_run);
 }
 
@@ -582,7 +582,8 @@ void M65Debugger::process_async_event(std::vector<std::string>& lines)
   }
 
   DapLogger::debug_out("Breakpoint triggered\n");
-  if (!update_registers(lines) || current_registers_.pc != breakpoint_->pc) {
+  if (!update_registers(lines) || current_registers_.pc < breakpoint_->pc ||
+      (current_registers_.pc - breakpoint_->pc) > 3) {
     execute_command("t0\n");
     return;
   }
