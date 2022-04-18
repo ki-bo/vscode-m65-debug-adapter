@@ -80,6 +80,12 @@ auto UnixConnection::read_line(int timeout_ms) -> std::pair<std::string, bool>
     }
   }
 
+  if (buffer_.front() == '.') {
+    DapLogger::debug_out("Prompt (.) found\n");
+    buffer_.erase(0);
+    return {".", false};
+  }
+
   auto line = buffer_.substr(0, pos);
   buffer_.erase(0, pos + 1);
   if (!line.empty() && line.back() == '\r') {

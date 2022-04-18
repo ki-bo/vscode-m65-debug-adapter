@@ -139,7 +139,7 @@ void M65Debugger::clear_breakpoint()
   breakpoint_.reset();
 }
 
-auto M65Debugger::get_current_source_position() -> SourcePosition
+auto M65Debugger::get_current_source_position() const -> SourcePosition
 {
   SourcePosition result;
 
@@ -328,16 +328,16 @@ void M65Debugger::do_event_processing()
     lines = get_lines_until_prompt();
   }
 
-  process_async_event(lines);
+  handle_breakpoint(lines);
 }
 
 void M65Debugger::check_breakpoint_by_pc()
 {
-  if (!breakpoint_.has_value()) {
+  if (!breakpoint_.has_value() || stopped_) {
     return;
   }
   update_registers();
-  if (current_registers_.pc == breakpoint_->pc) {
+  if (is_breakpoint_trigger_valid()) {
     stopped_ = true;
     if (event_handler_) {
       auto f = std::async(std::launch::async, &EventHandlerInterface::handle_debugger_stopped, event_handler_,
@@ -570,11 +570,11 @@ std::vector<std::string> M65Debugger::execute_command(std::string_view cmd)
     }
 
     // Received a line,  but it did not match our cmd, treat it as an event
-    process_async_event(lines);
+    handle_breakpoint(lines);
   }
 }
 
-void M65Debugger::process_async_event(std::vector<std::string>& lines)
+void M65Debugger::handle_breakpoint(std::vector<std::string>& lines)
 {
   std::erase_if(lines, [](const std::string& s) { return s.empty(); });
   if (!lines[0].starts_with("PC   A  X  Y  Z  B  SP")) {
@@ -582,8 +582,7 @@ void M65Debugger::process_async_event(std::vector<std::string>& lines)
   }
 
   DapLogger::debug_out("Breakpoint triggered\n");
-  if (!update_registers(lines) || current_registers_.pc < breakpoint_->pc ||
-      (current_registers_.pc - breakpoint_->pc) > 3) {
+  if (!update_registers(lines) || !is_breakpoint_trigger_valid()) {
     execute_command("t0\n");
     return;
   }
@@ -646,6 +645,36 @@ auto M65Debugger::parse_address_line(std::string_view mem_string, std::span<std:
   }
 
   return ret_addr;
+}
+
+auto M65Debugger::is_breakpoint_trigger_valid() -> bool
+{
+  std::byte cmd_at_breakpoint[5];
+  memory_cache_.read(breakpoint_->pc, cmd_at_breakpoint);
+
+  int addr_on_stack{memory_cache_.read_word(current_registers_.sp + 1)};
+
+  const auto& opcode{get_opcode(cmd_at_breakpoint[0])};
+  if (opcode.mnemonic == Mnemonic::JSR || opcode.mnemonic == Mnemonic::BSR) {
+    auto target_address = calculate_address(to_word(cmd_at_breakpoint + 1), opcode.mode, breakpoint_->pc + 2);
+    return current_registers_.pc == target_address;
+  }
+
+  return true;
+}
+
+auto M65Debugger::calculate_address(int addr, AddressingMode mode, int pc) -> int
+{
+  switch (mode) {
+    case AddressingMode::Absolute:
+      return addr;
+    case AddressingMode::AbsoluteIndirect:
+      return memory_cache_.read_word(addr);
+    case AddressingMode::AbsoluteIndirectX:
+      return memory_cache_.read_word(addr + current_registers_.x);
+    case AddressingMode::RelativeWord:
+      return pc + (addr > 0x7fff ? addr - 0x10000 : addr);
+  }
 }
 
 }  // namespace m65dap

@@ -3,6 +3,7 @@
 #include "c64_debugger_data.h"
 #include "connection.h"
 #include "memory_cache.h"
+#include "opcodes.h"
 
 namespace m65dap {
 
@@ -105,9 +106,9 @@ class M65Debugger {
   void set_breakpoint(const std::filesystem::path& src_path, int line);
   void clear_breakpoint();
   auto get_breakpoint() const -> std::optional<Breakpoint> { return breakpoint_; }
-  auto get_registers() -> Registers { return current_registers_; }
-  auto get_pc() -> int { return current_registers_.pc; }
-  auto get_current_source_position() -> SourcePosition;
+  auto get_registers() const -> Registers { return current_registers_; }
+  auto get_pc() -> const int { return current_registers_.pc; }
+  auto get_current_source_position() const -> SourcePosition;
   auto evaluate_expression(std::string_view expression, bool format_as_hex) -> EvaluateResult;
 
  private:
@@ -138,9 +139,11 @@ class M65Debugger {
   void simulate_keypresses(std::string_view keys);
   auto get_lines_until_prompt() -> std::vector<std::string>;
   auto execute_command(std::string_view cmd) -> std::vector<std::string>;
-  void process_async_event(std::vector<std::string>& lines);
+  void handle_breakpoint(std::vector<std::string>& lines);
   void get_memory_bytes(int address, std::span<std::byte> target);
   auto parse_address_line(std::string_view mem_string, std::span<std::byte> target) -> int;
+  auto is_breakpoint_trigger_valid() -> bool;
+  auto calculate_address(int addr, AddressingMode am, int pc) -> int;
 };
 
 }  // namespace m65dap

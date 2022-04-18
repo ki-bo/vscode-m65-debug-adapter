@@ -51,4 +51,6 @@ inline auto replace_all(std::string& str, std::string_view find_str, std::string
   return str;
 }
 
+inline auto to_word(std::byte* ptr) -> int { return std::to_integer<int>(ptr[0]) + 256 * std::to_integer<int>(ptr[1]); }
+
 }  // namespace m65dap

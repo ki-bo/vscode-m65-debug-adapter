@@ -63,6 +63,22 @@ void MemoryCache::read(int address, std::span<std::byte> target)
   }
 }
 
+auto MemoryCache::read_byte(int address) -> std::byte
+{
+  int line_address = address & ~(bytes_per_cache_line - 1);
+  int line_offset = address % bytes_per_cache_line;
+  auto* line_info = ensure_valid_cache_line(line_address);
+  line_info->accessed = true;
+  return *(data_.begin() + line_info->table_idx * bytes_per_cache_line + line_offset);
+}
+
+auto MemoryCache::read_word(int address) -> int
+{
+  std::byte word_bytes[2];
+  read(address, word_bytes);
+  return std::to_integer<int>(word_bytes[0]) + 256 * std::to_integer<int>(word_bytes[1]);
+}
+
 auto MemoryCache::ensure_valid_cache_line(int line_address) -> LineInfo*
 {
   assert(line_address % bytes_per_cache_line == 0);

@@ -23,6 +23,8 @@ class MemoryCache {
 
   void invalidate();
   void read(int address, std::span<std::byte> target);
+  auto read_byte(int address) -> std::byte;
+  auto read_word(int address) -> int;
 
   void refresh_accessed();
 

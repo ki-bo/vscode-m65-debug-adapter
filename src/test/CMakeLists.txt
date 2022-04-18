@@ -4,6 +4,7 @@ add_executable(m65dap_tests
   memory_test.cpp
   mock_mega65.cpp
   mock_mega65.h
+  opcode_test.cpp
   test_common.cpp
   test_common.h
   trace_test.cpp
@@ -16,6 +17,7 @@ add_executable(m65dap_tests
   ../m65_debugger.h
   ../memory_cache.cpp
   ../memory_cache.h
+  ../opcodes.h
   ../serial_connection.cpp
   ../serial_connection.h
   ../unix_connection.cpp
