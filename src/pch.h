@@ -30,5 +30,9 @@
 #include <variant>
 #include <vector>
 
+#if defined(__unix__) || defined(__APPLE__)
+#include <unistd.h>
+#endif
+
 #include "exception.h"
 #include "util.h"

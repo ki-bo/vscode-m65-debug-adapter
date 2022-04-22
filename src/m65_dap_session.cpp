@@ -109,6 +109,7 @@ void M65DapSession::register_request_handlers()
     res.supportsConfigurationDoneRequest = true;
     res.supportsValueFormattingOptions = true;
     res.supportsReadMemoryRequest = true;
+    res.supportsDisassembleRequest = true;
     return res;
   });
 
@@ -130,7 +131,7 @@ void M65DapSession::register_request_handlers()
   });
 
   session_->registerSentHandler([&](const dap::ResponseOrError<dap::DisconnectResponse>&) {
-    session_->send(dap::InitializedEvent());
+    // session_->send(dap::InitializedEvent());
     exit_promise_.set_value();
   });
 
@@ -359,6 +360,10 @@ void M65DapSession::register_request_handlers()
     }
     return response;
   });
+
+  // session_->registerHandler([&](const dap::DisassembleRequest& req) {
+
+  //});
 }
 
 }  // namespace m65dap

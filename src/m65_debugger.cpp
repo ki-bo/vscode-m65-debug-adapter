@@ -2,8 +2,8 @@
 
 #include "dap_logger.h"
 #include "duration.h"
-#include "unix_serial_connection.h"
 #include "unix_domain_socket_connection.h"
+#include "unix_serial_connection.h"
 
 using namespace std::chrono_literals;
 
@@ -651,11 +651,11 @@ auto M65Debugger::parse_address_line(std::string_view mem_string, std::span<std:
                                "Unexpected memory read response");
   auto ret_addr = str_to_int(match[1].str(), 16);
 
-  auto mem_bytes_it{match[2].first};
+  const char* mem_bytes_ptr{match[2].first};
   for (auto& val : target) {
-    auto sv = std::string_view(mem_bytes_it, mem_bytes_it + 2);
+    auto sv = std::string_view(mem_bytes_ptr, 2);
     val = static_cast<std::byte>(str_to_int(sv, 16));
-    mem_bytes_it += 2;
+    mem_bytes_ptr += 2;
   }
 
   return ret_addr;
