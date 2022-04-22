@@ -12,6 +12,12 @@ void throw_if(bool condition, std::string_view msg)
   }
 }
 
+inline auto parse_c64_hex(std::string_view str) -> int
+{
+  m65dap::throw_if<std::runtime_error>(str.empty() || str.front() != '$', "Unexpected hex format");
+  return std::stoi(std::string(str.substr(1)), nullptr, 16);
+}
+
 const std::string white_space_chars{" \t\n\r\f\v"};
 
 inline auto rtrim(std::string& str, const std::string& trim_chars = white_space_chars) -> std::string&

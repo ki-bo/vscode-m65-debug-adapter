@@ -164,20 +164,20 @@ auto M65Debugger::evaluate_expression(std::string_view expression, bool format_a
       return result;
     }
 
-    static const std::regex direct_regex(R"(^\s*(\w+)(?:\s*,\s*([xyz]))?(?:\s*,\s*([bwq]))?(?:\s*,\s*(\d+))?\s*$)",
-                                         std::regex::icase | std::regex::optimize);
+    static const std::regex direct_regex(
+        R"(^\s*(\$[0-9a-fA-F]{1,7}?|\w+)(?:\s*,\s*([xyz]))?(?:\s*,\s*([bwq]))?(?:\s*,\s*(\d+))?\s*$)",
+        std::regex::icase | std::regex::optimize);
     static const std::regex indirect_regex(
         R"(^\s*\(\s*(\w+)\s*\)(?:\s*,\s*([xyz]))?(?:\s*,\s*([bwq]))?(?:\s*,\s*(\d+))?\s*$)",
         std::regex::icase | std::regex::optimize);
 
-    std::smatch match;
-    std::string expression_str(expression);
+    std::cmatch match;
 
     bool indirect;
-    if (std::regex_search(expression_str, match, direct_regex)) {
+    if (std::regex_search(expression.cbegin(), expression.cend(), match, direct_regex)) {
       indirect = false;
     }
-    else if (std::regex_search(expression_str, match, indirect_regex)) {
+    else if (std::regex_search(expression.cbegin(), expression.cend(), match, indirect_regex)) {
       indirect = true;
     }
     else {
@@ -214,15 +214,23 @@ auto M65Debugger::evaluate_expression(std::string_view expression, bool format_a
       num_elements = std::min(256, std::atoi(num_elements_match.str().c_str()));
     }
 
-    const auto* label_entry = dbg_data_->get_label_info(label);
-    if (!label_entry) {
-      return result;
+    static const std::regex address_regex(R"(^\$([0-9a-fA-F]{1,7})$)", std::regex::icase | std::regex::optimize);
+    int address{0};
+    if (std::regex_search(label.cbegin(), label.cend(), address_regex)) {
+      address = parse_c64_hex(label);
+    }
+    else {
+      const auto* label_entry = dbg_data_->get_label_info(label);
+      if (!label_entry) {
+        return result;
+      }
+      address = label_entry->address;
     }
 
     std::vector<std::byte> tmp(type_size * num_elements);
-    memory_cache_.read(label_entry->address, tmp);
+    memory_cache_.read(address, tmp);
 
-    result.address = label_entry->address;
+    result.address = address;
     switch (type_size) {
       case 1:
         result.result_string.reserve(3 * num_elements);
@@ -577,6 +585,9 @@ std::vector<std::string> M65Debugger::execute_command(std::string_view cmd)
 void M65Debugger::handle_breakpoint(std::vector<std::string>& lines)
 {
   std::erase_if(lines, [](const std::string& s) { return s.empty(); });
+  if (lines[0] == "!") {
+    lines.erase(lines.begin());
+  }
   if (!lines[0].starts_with("PC   A  X  Y  Z  B  SP")) {
     throw std::runtime_error("Unexpected breakpoint trigger response");
   }
@@ -657,6 +668,8 @@ auto M65Debugger::is_breakpoint_trigger_valid() -> bool
   const auto& opcode{get_opcode(cmd_at_breakpoint[0])};
   if (opcode.mnemonic == Mnemonic::JSR || opcode.mnemonic == Mnemonic::BSR) {
     auto target_address = calculate_address(to_word(cmd_at_breakpoint + 1), opcode.mode, breakpoint_->pc + 2);
+    DapLogger::debug_out(
+        fmt::format("JSR/BSR breakpoint expecting {}, got PC {}\n", target_address, current_registers_.pc));
     return current_registers_.pc == target_address;
   }
 

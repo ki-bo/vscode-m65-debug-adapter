@@ -1,15 +1,5 @@
 #include "c64_debugger_data.h"
 
-namespace {
-
-int parse_c64_hex(std::string_view str)
-{
-  m65dap::throw_if<std::runtime_error>(str.empty() || str.front() != '$', "Unexpected hex format");
-  return std::stoi(std::string(str.substr(1)), nullptr, 16);
-}
-
-}  // namespace
-
 namespace m65dap {
 
 C64DebuggerData::C64DebuggerData(const std::filesystem::path& dbg_file)
