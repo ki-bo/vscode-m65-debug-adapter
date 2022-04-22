@@ -2,7 +2,7 @@
 
 #include "dap_logger.h"
 #include "duration.h"
-#include "serial_connection.h"
+#include "unix_serial_connection.h"
 #include "unix_domain_socket_connection.h"
 
 using namespace std::chrono_literals;
@@ -15,14 +15,16 @@ M65Debugger::M65Debugger(std::string_view serial_port_device,
                          bool reset_on_disconnect) :
     event_handler_(event_handler), memory_cache_(this), reset_on_disconnect_(reset_on_disconnect)
 {
+#ifdef _POSIX_VERSION
   if (serial_port_device.starts_with("unix#")) {
     std::string_view socket_path = serial_port_device.substr(5);
     conn_ = std::make_unique<UnixDomainSocketConnection>(socket_path);
     is_xemu_ = true;
   }
   else {
-    conn_ = std::make_unique<SerialConnection>(serial_port_device);
+    conn_ = std::make_unique<UnixSerialConnection>(serial_port_device);
   }
+#endif
 
   initialize(reset_on_run);
 }
@@ -123,7 +125,7 @@ void M65Debugger::set_breakpoint(const std::filesystem::path& src_path, int line
 
     auto dbg_block_entry = dbg_data_->eval_breakpoint_line(src_path, line);
     if (!dbg_block_entry) {
-      throw std::runtime_error(fmt::format("Can't set breakpoint at {}:{}", src_path.native(), line));
+      throw std::runtime_error(fmt::format("Can't set breakpoint at {}:{}", src_path.string(), line));
     }
 
     Breakpoint b{.src_path = src_path, .line = dbg_block_entry->line1, .pc = dbg_block_entry->start};
@@ -171,7 +173,7 @@ auto M65Debugger::evaluate_expression(std::string_view expression, bool format_a
         R"(^\s*\(\s*(\w+)\s*\)(?:\s*,\s*([xyz]))?(?:\s*,\s*([bwq]))?(?:\s*,\s*(\d+))?\s*$)",
         std::regex::icase | std::regex::optimize);
 
-    std::cmatch match;
+    SvMatch match;
 
     bool indirect;
     if (std::regex_search(expression.cbegin(), expression.cend(), match, direct_regex)) {
@@ -235,20 +237,20 @@ auto M65Debugger::evaluate_expression(std::string_view expression, bool format_a
       case 1:
         result.result_string.reserve(3 * num_elements);
         for (int idx{0}; idx < num_elements; ++idx) {
-          result.result_string.append(fmt::format("{:0>2X} ", tmp[idx]));
+          result.result_string.append(fmt::format("{:02X} ", tmp[idx]));
         }
         break;
       case 2:
         result.result_string.reserve(5 * num_elements);
         for (int idx{0}; idx < num_elements; ++idx) {
-          result.result_string.append(fmt::format("{:0>2X}{:0>2X} ", tmp[idx + 1], tmp[idx]));
+          result.result_string.append(fmt::format("{:02X}{:02X} ", tmp[idx + 1], tmp[idx]));
         }
         break;
       case 4:
         result.result_string.reserve(9 * num_elements);
         for (int idx{0}; idx < num_elements; ++idx) {
           result.result_string.append(
-              fmt::format("{:0>2X}{:0>2X}{:0>2X}{:0>2X} ", tmp[idx + 3], tmp[idx + 2], tmp[idx + 1], tmp[idx]));
+              fmt::format("{:02X}{:02X}{:02X}{:02X} ", tmp[idx + 3], tmp[idx + 2], tmp[idx + 1], tmp[idx]));
         }
         break;
     }
@@ -532,7 +534,7 @@ void M65Debugger::simulate_keypresses(std::string_view keys)
     if (count == 0) {
       cmd = fmt::format("s{:X}", 0x2b0);  // write bytes to keyboard buffer address
     }
-    cmd += fmt::format(" {:0>2X}", static_cast<int>(key));
+    cmd += fmt::format(" {:02X}", static_cast<int>(key));
     ++count;
     if (count == max_per_line) {
       finalize_cmd();
@@ -644,14 +646,15 @@ auto M65Debugger::parse_address_line(std::string_view mem_string, std::span<std:
 {
   assert(target.size() <= 16);
   static const std::regex r(R"(^:([0-9A-F]{1,8}):([0-9A-F]{32})$)", std::regex::optimize);
-  std::cmatch match;
+  SvMatch match;
   throw_if<std::runtime_error>(!std::regex_search(mem_string.cbegin(), mem_string.cend(), match, r),
                                "Unexpected memory read response");
   auto ret_addr = str_to_int(match[1].str(), 16);
 
   auto mem_bytes_it{match[2].first};
   for (auto& val : target) {
-    val = static_cast<std::byte>(str_to_int(std::string_view(mem_bytes_it, 2), 16));
+    auto sv = std::string_view(mem_bytes_it, mem_bytes_it + 2);
+    val = static_cast<std::byte>(str_to_int(sv, 16));
     mem_bytes_it += 2;
   }
 
@@ -688,6 +691,7 @@ auto M65Debugger::calculate_address(int addr, AddressingMode mode, int pc) -> in
     case AddressingMode::RelativeWord:
       return pc + (addr > 0x7fff ? addr - 0x10000 : addr);
   }
+  throw std::logic_error("Unimplemented AddressingMode");
 }
 
 }  // namespace m65dap

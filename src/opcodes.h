@@ -7,7 +7,7 @@ enum class Mnemonic { Illegal, BSR, JSR };
 enum class AddressingMode { Absolute, AbsoluteIndirect, AbsoluteIndirectX, RelativeWord };
 
 struct Opcode {
-  std::byte code{0};
+  std::byte code;
   Mnemonic mnemonic{Mnemonic::Illegal};
   AddressingMode mode{AddressingMode::Absolute};
 };

@@ -1,3 +1,5 @@
+#ifdef _POSIX_VERSION
+
 #include "unix_connection.h"
 
 #include <unistd.h>
@@ -136,3 +138,5 @@ void UnixConnection::flush_rx_buffers()
 }
 
 }  // namespace m65dap
+
+#endif // _POSIX_VERSION

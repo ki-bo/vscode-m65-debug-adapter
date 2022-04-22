@@ -27,6 +27,7 @@
 #include <string_view>
 #include <thread>
 #include <type_traits>
+#include <variant>
 #include <vector>
 
 #include "exception.h"

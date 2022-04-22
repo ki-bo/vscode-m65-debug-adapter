@@ -4,7 +4,6 @@
 #include <fcntl.h>  // _O_BINARY
 #include <io.h>     // _setmode
 #endif
-#include <unistd.h>
 
 // Needed to attach debugger (we send SIGSTOP to ourselves to wait for debugger to connect)
 #include <csignal>

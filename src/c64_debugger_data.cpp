@@ -5,8 +5,8 @@ namespace m65dap {
 C64DebuggerData::C64DebuggerData(const std::filesystem::path& dbg_file)
 {
   tinyxml2::XMLDocument doc;
-  throw_if<std::runtime_error>(doc.LoadFile(dbg_file.native().c_str()) != tinyxml2::XML_SUCCESS,
-                               fmt::format("Unable to load xml file '{}'", dbg_file.native()));
+  throw_if<std::runtime_error>(doc.LoadFile(dbg_file.string().c_str()) != tinyxml2::XML_SUCCESS,
+                               fmt::format("Unable to load xml file '{}'", from_u8string(dbg_file.u8string())));
 
   auto* root = doc.RootElement();
   throw_if<std::runtime_error>(

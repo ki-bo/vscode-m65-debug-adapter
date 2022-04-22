@@ -18,12 +18,12 @@ add_executable(m65dap_tests
   ../memory_cache.cpp
   ../memory_cache.h
   ../opcodes.h
-  ../serial_connection.cpp
-  ../serial_connection.h
   ../unix_connection.cpp
   ../unix_connection.h
   ../unix_domain_socket_connection.cpp
   ../unix_domain_socket_connection.h
+  ../unix_serial_connection.cpp
+  ../unix_serial_connection.h
   ../util.cpp
   ../util.h
 )
@@ -31,7 +31,7 @@ add_executable(m65dap_tests
 find_package(GTest REQUIRED)
 include(GoogleTest)
 
-target_link_libraries(m65dap_tests PRIVATE GTest::GTest fmt::fmt tinyxml2::tinyxml2 cppdap)
+target_link_libraries(m65dap_tests PRIVATE GTest::GTest fmt::fmt serial::serial tinyxml2::tinyxml2 cppdap)
 target_include_directories(m65dap_tests PRIVATE ..)
 target_precompile_headers(m65dap_tests PUBLIC ../pch.h)
 

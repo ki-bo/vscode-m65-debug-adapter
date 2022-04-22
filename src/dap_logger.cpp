@@ -12,7 +12,7 @@ DapLogger& DapLogger::instance()
 
 void DapLogger::open_file(const std::filesystem::path& log_file_path)
 {
-  log_file_ = dap::file(log_file_path.native().c_str());
+  log_file_ = dap::file(from_u8string(log_file_path.u8string()).c_str());
 }
 
 void DapLogger::debug_out(std::string_view msg)

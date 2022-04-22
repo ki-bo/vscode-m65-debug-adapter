@@ -1,3 +1,5 @@
+#ifdef _POSIX_VERSION
+
 #include "unix_domain_socket_connection.h"
 
 #include <fcntl.h>
@@ -34,3 +36,5 @@ UnixDomainSocketConnection::UnixDomainSocketConnection(const std::filesystem::pa
 }
 
 }  // namespace m65dap
+
+#endif // _POSIX_VERSION

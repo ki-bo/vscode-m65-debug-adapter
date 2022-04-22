@@ -4,9 +4,9 @@
 
 namespace m65dap {
 
-class SerialConnection : public UnixConnection {
+class UnixSerialConnection : public UnixConnection {
  public:
-  SerialConnection(std::string_view port);
+  UnixSerialConnection(std::string_view port);
 };
 
 }  // namespace m65dap

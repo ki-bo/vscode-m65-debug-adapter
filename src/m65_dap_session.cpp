@@ -152,12 +152,13 @@ void M65DapSession::register_request_handlers()
       return dap::Error(fmt::format("Can't open connection to '{}'\n{}", req.serialPort.value(), e.what()));
     }
 
-    if (!std::filesystem::exists(req.program.value())) {
-      return dap::Error("Can't find program '%s'", req.program.value().c_str());
+    std::u8string file_path_u8(req.program.value().begin(), req.program.value().end());
+    if (!std::filesystem::exists(file_path_u8)) {
+      return dap::Error("Can't find program '%s'", file_path_u8.c_str());
     }
 
     try {
-      debugger_->set_target(req.program.value());
+      debugger_->set_target(file_path_u8);
     }
     catch (const std::exception& e) {
       return dap::Error("Error launching target: '%s'", e.what());
@@ -194,7 +195,7 @@ void M65DapSession::register_request_handlers()
 
           result.line = b.line;
           dap::Source src;
-          src.path = src_path;
+          src.path = from_u8string(src_path.u8string());
           result.source = src;
           if (debugger_->get_breakpoint().has_value()) {
             result.verified = false;
@@ -247,8 +248,8 @@ void M65DapSession::register_request_handlers()
     src.sourceReference = 0;
 
     std::filesystem::path src_path{src_pos.src_path};
-    src.name = src_pos.src_path.filename();
-    src.path = src_pos.src_path.native();
+    src.name = from_u8string(src_pos.src_path.filename().u8string());
+    src.path = from_u8string(src_pos.src_path.u8string());
     frame.source = src;
     frame.line = src_pos.line;
 
@@ -291,8 +292,6 @@ void M65DapSession::register_request_handlers()
   session_->registerHandler([&](const dap::VariablesRequest& req) {
     dap::VariablesResponse response;
 
-    std::string format_str_byte{"0x{:0>2X}"};
-    std::string format_str_word{"0x{:0>4X}"};
     /*if (req.format.has_value() && req.format.value().hex.value(false))
     {
       format_str = "${:X}";
@@ -309,34 +308,34 @@ void M65DapSession::register_request_handlers()
         v.type = "Byte";
       }
       v.name = "A";
-      v.value = fmt::format(format_str_byte, reg.a);
+      v.value = fmt::format("0x{:02X}", reg.a);
       response.variables.push_back(v);
       v.name = "X";
-      v.value = fmt::format(format_str_byte, reg.x);
+      v.value = fmt::format("0x{:02X}", reg.x);
       response.variables.push_back(v);
       v.name = "Y";
-      v.value = fmt::format(format_str_byte, reg.y);
+      v.value = fmt::format("0x{:02X}", reg.y);
       response.variables.push_back(v);
       v.name = "Z";
-      v.value = fmt::format(format_str_byte, reg.z);
+      v.value = fmt::format("0x{:02X}", reg.z);
       response.variables.push_back(v);
       v.name = "BP";
-      v.value = fmt::format(format_str_byte, reg.b);
+      v.value = fmt::format("0x{:02X}", reg.b);
       response.variables.push_back(v);
 
       if (client_supports_variable_type_) {
         v.type = "Word";
       }
       v.name = "PC";
-      v.value = fmt::format(format_str_word, reg.pc);
+      v.value = fmt::format("0x{:04X}", reg.pc);
       response.variables.push_back(v);
       v.name = "SP";
-      v.value = fmt::format(format_str_word, reg.sp);
+      v.value = fmt::format("0x{:04X}", reg.sp);
       response.variables.push_back(v);
 
       v.name = "FL";
       v.type = "Flags";
-      v.value = fmt::format("0x{:0>2X} ({})", reg.flags, reg.flags_string);
+      v.value = fmt::format("0x{:02X} ({})", reg.flags, reg.flags_string);
       response.variables.push_back(v);
     }
 

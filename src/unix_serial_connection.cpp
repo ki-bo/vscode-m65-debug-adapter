@@ -1,4 +1,6 @@
-#include "serial_connection.h"
+#ifdef _POSIX_VERSION
+
+#include "unix_serial_connection.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -11,7 +13,7 @@
 
 namespace m65dap {
 
-SerialConnection::SerialConnection(std::string_view port)
+UnixSerialConnection::UnixSerialConnection(std::string_view port)
 {
   fd_ = open(std::string(port).c_str(), O_RDWR | O_NOCTTY | O_SYNC);
   if (fd_ < 0) {
@@ -41,3 +43,5 @@ SerialConnection::SerialConnection(std::string_view port)
 }
 
 }  // namespace m65dap
+
+#endif // _POSIX_VERSION

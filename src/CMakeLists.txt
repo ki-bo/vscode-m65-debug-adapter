@@ -16,20 +16,17 @@ add_executable(${target}
     memory_cache.h
     opcodes.cpp
     opcodes.h
-    serial_connection.h
-    serial_connection.cpp
     unix_connection.cpp
     unix_connection.h
     unix_domain_socket_connection.cpp
     unix_domain_socket_connection.h
+    unix_serial_connection.h
+    unix_serial_connection.cpp
     util.cpp
     util.h
 )
 
-target_precompile_headers(${target}
-PUBLIC
-    pch.h    
-)
+target_precompile_headers(${target} PUBLIC pch.h)
 
 find_package(fmt)
 find_package(serial)
