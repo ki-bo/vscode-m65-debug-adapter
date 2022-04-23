@@ -173,13 +173,13 @@ auto M65Debugger::evaluate_expression(std::string_view expression, bool format_a
         R"(^\s*\(\s*(\w+)\s*\)(?:\s*,\s*([xyz]))?(?:\s*,\s*([bwq]))?(?:\s*,\s*(\d+))?\s*$)",
         std::regex::icase | std::regex::optimize);
 
-    SvMatch match;
+    std::cmatch match;
 
     bool indirect;
-    if (std::regex_search(expression.cbegin(), expression.cend(), match, direct_regex)) {
+    if (regex_search(expression, match, direct_regex)) {
       indirect = false;
     }
-    else if (std::regex_search(expression.cbegin(), expression.cend(), match, indirect_regex)) {
+    else if (regex_search(expression, match, indirect_regex)) {
       indirect = true;
     }
     else {
@@ -218,7 +218,7 @@ auto M65Debugger::evaluate_expression(std::string_view expression, bool format_a
 
     static const std::regex address_regex(R"(^\$([0-9a-fA-F]{1,7})$)", std::regex::icase | std::regex::optimize);
     int address{0};
-    if (std::regex_search(label.cbegin(), label.cend(), address_regex)) {
+    if (regex_search(label, address_regex)) {
       address = parse_c64_hex(label);
     }
     else {
@@ -646,12 +646,11 @@ auto M65Debugger::parse_address_line(std::string_view mem_string, std::span<std:
 {
   assert(target.size() <= 16);
   static const std::regex r(R"(^:([0-9A-F]{1,8}):([0-9A-F]{32})$)", std::regex::optimize);
-  SvMatch match;
-  throw_if<std::runtime_error>(!std::regex_search(mem_string.cbegin(), mem_string.cend(), match, r),
-                               "Unexpected memory read response");
+  std::cmatch match;
+  throw_if<std::runtime_error>(!regex_search(mem_string, match, r), "Unexpected memory read response");
   auto ret_addr = str_to_int(match[1].str(), 16);
 
-  const char* mem_bytes_ptr{match[2].first};
+  const char* mem_bytes_ptr = static_cast<const char*>(&(*match[2].first));
   for (auto& val : target) {
     auto sv = std::string_view(mem_bytes_ptr, 2);
     val = static_cast<std::byte>(str_to_int(sv, 16));

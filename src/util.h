@@ -2,7 +2,19 @@
 
 namespace m65dap {
 
-using SvMatch = std::match_results<std::string_view::const_iterator>;
+inline auto regex_search(std::string_view text, std::cmatch& m, const std::regex& r) -> bool
+{
+  const char* begin = static_cast<const char*>(text.data());
+  const char* end = begin + text.length();
+  return std::regex_search(begin, end, m, r);
+}
+
+inline auto regex_search(std::string_view text, const std::regex& r) -> bool
+{
+  const char* begin = static_cast<const char*>(text.data());
+  const char* end = begin + text.length();
+  return std::regex_search(begin, end, r);
+}
 
 std::vector<std::string> split(const std::string&, char delim);
 
@@ -20,10 +32,7 @@ inline auto parse_c64_hex(std::string_view str) -> int
   return std::stoi(std::string(str.substr(1)), nullptr, 16);
 }
 
-inline auto from_u8string(const std::u8string& s) -> std::string 
-{
-  return std::string(s.begin(), s.end());
-}
+inline auto from_u8string(const std::u8string& s) -> std::string { return std::string(s.begin(), s.end()); }
 
 const std::string white_space_chars{" \t\n\r\f\v"};
 

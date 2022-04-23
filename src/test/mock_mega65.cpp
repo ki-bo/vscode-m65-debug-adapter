@@ -116,8 +116,8 @@ auto MockMega65::parse_memory_cmd(std::string_view line) -> bool
 {
   static const std::regex r(R"(^\s*([mM])\s*([0-9a-fA-F]+)\s*$)");
 
-  SvMatch match;
-  if (!std::regex_search(line.cbegin(), line.cend(), match, r)) {
+  std::cmatch match;
+  if (!regex_search(line, match, r)) {
     return false;
   }
 
@@ -143,8 +143,8 @@ auto MockMega65::parse_trace_cmd(std::string_view line) -> bool
 {
   static const std::regex r(R"(^\s*t([01])\s*$)");
 
-  SvMatch match;
-  if (!std::regex_search(line.cbegin(), line.cend(), match, r)) {
+  std::cmatch match;
+  if (!regex_search(line, match, r)) {
     return false;
   }
 
@@ -171,8 +171,8 @@ auto MockMega65::parse_load_cmd(std::string_view line) -> bool
 {
   static const std::regex r(R"(^\s*[l]\s*([0-9a-fA-F]{1,4})\s+([0-9a-fA-F]{1,4})\s*$)");
 
-  SvMatch match;
-  if (!std::regex_search(line.cbegin(), line.cend(), match, r)) {
+  std::cmatch match;
+  if (!regex_search(line, match, r)) {
     return false;
   }
 
