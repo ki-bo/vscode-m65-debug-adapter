@@ -70,6 +70,9 @@ class M65Debugger {
   using DebuggerTaskResult = std::optional<std::variant<EvaluateResult>>;
   using DebuggerTask = std::packaged_task<DebuggerTaskResult()>;
 
+  std::string buffer_;
+  bool last_line_was_empty_{false};
+
   EventHandlerInterface* event_handler_{nullptr};
   MemoryCache memory_cache_;
   std::unique_ptr<Connection> conn_;
@@ -128,6 +131,9 @@ class M65Debugger {
     }
     return fut.get();
   }
+
+  auto read_line(int timeout_ms = 1000) -> std::pair<std::string, bool>;
+  void flush_rx_buffers();
 
   void sync_connection();
   void reset_target();

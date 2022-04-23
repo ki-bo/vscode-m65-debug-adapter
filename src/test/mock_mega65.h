@@ -17,10 +17,9 @@ class MockMega65 : public Connection {
   MockMega65();
 
   void write(std::span<const char> buffer) override final;
-
-  auto read_line(int timeout_ms = 1000) -> std::pair<std::string, bool> override final;
   auto read(int bytes_to_read, int timeout_ms = 1000) -> std::string override final;
-  void flush_rx_buffers() override final;
+  auto read_line(int timeout_ms = 1000) -> std::pair<std::string, bool>;
+  void flush_rx_buffers();
 
  private:
   auto process_load_bytes(std::span<const char> buffer) -> std::span<const char>;

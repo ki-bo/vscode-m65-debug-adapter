@@ -59,7 +59,7 @@ BreakAfterJavaFieldAnnotations: false
 BreakStringLiterals: true
 ColumnLimit:     120
 CommentPragmas:  '^ IWYU pragma:'
-QualifierAlignment: Leave
+#QualifierAlignment: Leave
 CompactNamespaces: false
 ConstructorInitializerIndentWidth: 4
 ContinuationIndentWidth: 4
@@ -70,7 +70,7 @@ DisableFormat:   false
 EmptyLineAfterAccessModifier: Never
 EmptyLineBeforeAccessModifier: LogicalBlock
 ExperimentalAutoDetectBinPacking: false
-PackConstructorInitializers: NextLine
+#PackConstructorInitializers: NextLine
 BasedOnStyle:    ''
 ConstructorInitializerAllOnOneLineOrOnePerLine: false
 AllowAllConstructorInitializersOnNextLine: true
@@ -168,7 +168,7 @@ RawStringFormats:
     BasedOnStyle:    google
 ReferenceAlignment: Pointer
 ReflowComments:  true
-RemoveBracesLLVM: false
+#RemoveBracesLLVM: false
 #SeparateDefinitionBlocks: Leave
 ShortNamespaceLines: 1
 SortIncludes:    CaseSensitive
@@ -183,14 +183,14 @@ SpaceBeforeCpp11BracedList: false
 SpaceBeforeCtorInitializerColon: true
 SpaceBeforeInheritanceColon: true
 SpaceBeforeParens: ControlStatements
-SpaceBeforeParensOptions:
-  AfterControlStatements: true
-  AfterForeachMacros: true
-  AfterFunctionDefinitionName: false
-  AfterFunctionDeclarationName: false
-  AfterIfMacros:   true
-  AfterOverloadedOperator: false
-  BeforeNonEmptyParentheses: false
+# SpaceBeforeParensOptions:
+#   AfterControlStatements: true
+#   AfterForeachMacros: true
+#   AfterFunctionDefinitionName: false
+#   AfterFunctionDeclarationName: false
+#   AfterIfMacros:   true
+#   AfterOverloadedOperator: false
+#   BeforeNonEmptyParentheses: false
 SpaceAroundPointerQualifiers: Default
 SpaceBeforeRangeBasedForLoopColon: true
 SpaceInEmptyBlock: false

@@ -13,7 +13,8 @@ M65Debugger::M65Debugger(std::string_view serial_port_device,
                          EventHandlerInterface* event_handler,
                          bool reset_on_run,
                          bool reset_on_disconnect) :
-    event_handler_(event_handler), memory_cache_(this), reset_on_disconnect_(reset_on_disconnect)
+    event_handler_(event_handler),
+    memory_cache_(this), reset_on_disconnect_(reset_on_disconnect)
 {
 #ifdef _POSIX_VERSION
   if (serial_port_device.starts_with("unix#")) {
@@ -23,6 +24,7 @@ M65Debugger::M65Debugger(std::string_view serial_port_device,
   }
   else {
     conn_ = std::make_unique<UnixSerialConnection>(serial_port_device);
+    flush_rx_buffers();
   }
 #endif
 
@@ -34,9 +36,7 @@ M65Debugger::M65Debugger(std::unique_ptr<Connection> connection,
                          bool reset_on_run,
                          bool reset_on_disconnect) :
     conn_(std::move(connection)),
-    event_handler_(event_handler),
-    memory_cache_(this),
-    reset_on_disconnect_(reset_on_disconnect)
+    event_handler_(event_handler), memory_cache_(this), reset_on_disconnect_(reset_on_disconnect)
 {
   initialize(reset_on_run);
 }
@@ -304,7 +304,7 @@ void M65Debugger::main_loop(std::future<void> future_exit_object)
 
 void M65Debugger::do_event_processing()
 {
-  auto result = conn_->read_line(0);
+  auto result = read_line(0);
   if (result.second) {
     // No line available now
     return;
@@ -317,16 +317,16 @@ void M65Debugger::do_event_processing()
 
   std::vector<std::string> lines;
   if (is_xemu_) {
-    result = conn_->read_line();
+    result = read_line();
     throw_if<timeout_error>(result.second, "Timeout reading breakpoint registers header");
     lines.emplace_back(std::move(result.first));
     if (!lines.back().starts_with("PC   A")) {
       throw std::runtime_error("Expected register header in breakpoint response");
     }
-    result = conn_->read_line();
+    result = read_line();
     throw_if<timeout_error>(result.second, "Timeout reading breakpoint registers values");
     lines.emplace_back(std::move(result.first));
-    result = conn_->read_line();
+    result = read_line();
     throw_if<timeout_error>(result.second, "Timeout reading breakpoint memory location");
     lines.emplace_back(std::move(result.first));
     if (!lines.back().starts_with(",0777")) {
@@ -357,6 +357,69 @@ void M65Debugger::check_breakpoint_by_pc()
   }
 }
 
+auto M65Debugger::read_line(int timeout_ms) -> std::pair<std::string, bool>
+{
+  std::size_t pos;
+  char tmp[1024];
+
+  Duration t;
+
+  while ((pos = buffer_.find_first_of("\n")) == std::string::npos) {
+    if (!buffer_.empty()) {
+      if (buffer_.front() == '.') {
+        // Prompt found, no eol will follow, treat it as line
+        DapLogger::debug_out("Prompt (.) found\n");
+        buffer_.erase(0);
+        return {".", false};
+      }
+      if (buffer_.front() == '!') {
+        // Breakpoint found, no eol will follow, treat it as line
+        DapLogger::debug_out("Breakpoint trigger (!) found\n");
+        buffer_.erase(0);
+        return {"!", false};
+      }
+    }
+
+    auto read_data = conn_->read(1024, timeout_ms);
+
+    if (read_data.empty()) {
+      return {{}, true};
+    }
+    else {
+      buffer_.append(read_data);
+    }
+  }
+
+  if (buffer_.front() == '.') {
+    DapLogger::debug_out("Prompt (.) found\n");
+    buffer_.erase(0);
+    return {".", false};
+  }
+
+  auto line = buffer_.substr(0, pos);
+  buffer_.erase(0, pos + 1);
+  if (!line.empty() && line.back() == '\r') {
+    line.pop_back();
+  }
+  last_line_was_empty_ = line.empty();
+
+  auto dbg_str = line;
+  replace_all(dbg_str, "\n", "\\n");
+  replace_all(dbg_str, "\r", "\\r");
+  DapLogger::debug_out(fmt::format("<- \"{}\"\n", dbg_str));
+  return {line, false};
+}
+
+void M65Debugger::flush_rx_buffers()
+{
+  // Do a dummy read of 64K to flush the buffer
+  auto dummy_str = conn_->read(65536, 100);
+  if (!dummy_str.empty()) {
+    buffer_.clear();
+    DapLogger::debug_out(fmt::format("Flushing rx buffer ({0:}/${0:X} bytes)\n", dummy_str.size()));
+  }
+}
+
 void M65Debugger::sync_connection()
 {
   int retries = 10;
@@ -365,7 +428,7 @@ void M65Debugger::sync_connection()
   while (retries-- > 0) {
     auto cmd = is_xemu_ ? std::string("?\n") : fmt::format("?{}\n", retries);
     conn_->write(cmd);
-    auto reply = conn_->read_line(500);
+    auto reply = read_line(500);
     if (reply.second) {
       // timeout
       DapLogger::debug_out(fmt::format("sync_connection() timeout, retries={}\n", retries));
@@ -396,7 +459,7 @@ void M65Debugger::sync_connection()
       dummy_array.back() = '\n';
       conn_->write(dummy_array);
     }
-    conn_->flush_rx_buffers();
+    flush_rx_buffers();
   }
 
   throw std::runtime_error("Unable to sync with Mega65 debugger interface");
@@ -417,7 +480,7 @@ void M65Debugger::reset_target()
   if (reply.empty()) {
     throw std::runtime_error("Unable to reset target");
   }
-  conn_->flush_rx_buffers();
+  flush_rx_buffers();
 
   sync_connection();
 }
@@ -552,7 +615,7 @@ auto M65Debugger::get_lines_until_prompt() -> std::vector<std::string>
   std::vector<std::string> lines;
 
   while (true) {
-    auto result = conn_->read_line();
+    auto result = read_line();
     throw_if<timeout_error>(result.second, "Timeout reading line");
 
     if (result.first == ".") {

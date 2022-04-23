@@ -43,65 +43,6 @@ void UnixConnection::write(std::span<const char> buffer)
   }
 }
 
-auto UnixConnection::read_line(int timeout_ms) -> std::pair<std::string, bool>
-{
-  std::size_t pos;
-  char tmp[1024];
-
-  Duration t;
-
-  while ((pos = buffer_.find_first_of("\n")) == std::string::npos) {
-    if (!buffer_.empty()) {
-      if (buffer_.front() == '.') {
-        // Prompt found, no eol will follow, treat it as line
-        DapLogger::debug_out("Prompt (.) found\n");
-        buffer_.erase(0);
-        return {".", false};
-      }
-      if (buffer_.front() == '!') {
-        // Breakpoint found, no eol will follow, treat it as line
-        DapLogger::debug_out("Breakpoint trigger (!) found\n");
-        buffer_.erase(0);
-        return {"!", false};
-      }
-    }
-
-    auto read_bytes = ::read(fd_, tmp, 1024);
-
-    if (read_bytes == 0 || (read_bytes == -1 && errno == EAGAIN)) {
-      if (t.elapsed_ms() > timeout_ms) {
-        return {{}, true};
-      }
-      std::this_thread::sleep_for(1ms);
-    }
-    else if (read_bytes < 0) {
-      DapLogger::debug_out(fmt::format("Error: {}\n", strerror(errno)));
-    }
-    else {
-      buffer_.append(tmp, read_bytes);
-    }
-  }
-
-  if (buffer_.front() == '.') {
-    DapLogger::debug_out("Prompt (.) found\n");
-    buffer_.erase(0);
-    return {".", false};
-  }
-
-  auto line = buffer_.substr(0, pos);
-  buffer_.erase(0, pos + 1);
-  if (!line.empty() && line.back() == '\r') {
-    line.pop_back();
-  }
-  last_line_was_empty_ = line.empty();
-
-  auto dbg_str = line;
-  replace_all(dbg_str, "\n", "\\n");
-  replace_all(dbg_str, "\r", "\\r");
-  DapLogger::debug_out(fmt::format("<- \"{}\"\n", dbg_str));
-  return {line, false};
-}
-
 auto UnixConnection::read(int bytes_to_read, int timeout_ms) -> std::string
 {
   Duration t;
@@ -127,16 +68,6 @@ auto UnixConnection::read(int bytes_to_read, int timeout_ms) -> std::string
   return tmp;
 }
 
-void UnixConnection::flush_rx_buffers()
-{
-  // Do a dummy read of 64K to flush the buffer
-  auto dummy_str = read(65536, 100);
-  if (!dummy_str.empty()) {
-    buffer_.clear();
-    DapLogger::debug_out(fmt::format("Flushing rx buffer ({0:}/${0:X} bytes)\n", dummy_str.size()));
-  }
-}
-
 }  // namespace m65dap
 
-#endif // _POSIX_VERSION
+#endif  // _POSIX_VERSION

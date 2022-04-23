@@ -38,10 +38,8 @@ UnixSerialConnection::UnixSerialConnection(std::string_view port)
     throw std::runtime_error("Failed to set output baud rate using IOSSIOSPEED");
   }
 #endif
-
-  flush_rx_buffers();
 }
 
 }  // namespace m65dap
 
-#endif // _POSIX_VERSION
+#endif  // _POSIX_VERSION
