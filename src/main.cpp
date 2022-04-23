@@ -1,6 +1,8 @@
 #include <dap/io.h>
 
 #ifdef _WIN32
+#include <windows.h>
+
 #include <fcntl.h>  // _O_BINARY
 #include <io.h>     // _setmode
 #endif
@@ -22,10 +24,11 @@ int main()
 #ifndef NDEBUG
 #ifdef _POSIX_VERSION
   raise(SIGSTOP);
-#endif
   m65dap::M65DapSession session("/tmp/daplog.txt");
 #else
+  while (!::IsDebuggerPresent()) ::Sleep(100);
   m65dap::M65DapSession session;
+#endif
 #endif
 
   session.run();

@@ -16,6 +16,8 @@ add_executable(${target}
     memory_cache.h
     opcodes.cpp
     opcodes.h
+    serial_connection.cpp
+    serial_connection.h
     unix_connection.cpp
     unix_connection.h
     unix_domain_socket_connection.cpp

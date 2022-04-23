@@ -2,6 +2,7 @@
 
 #include "dap_logger.h"
 #include "duration.h"
+#include "serial_connection.h"
 #include "unix_domain_socket_connection.h"
 #include "unix_serial_connection.h"
 
@@ -26,6 +27,10 @@ M65Debugger::M65Debugger(std::string_view serial_port_device,
     conn_ = std::make_unique<UnixSerialConnection>(serial_port_device);
     flush_rx_buffers();
   }
+#endif
+
+#ifdef _WIN32
+  conn_ = std::make_unique<SerialConnection>(serial_port_device);
 #endif
 
   initialize(reset_on_run);
