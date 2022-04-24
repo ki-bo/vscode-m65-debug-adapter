@@ -1,5 +1,7 @@
 add_executable(m65dap_tests 
+  connection_proxy.cpp
   connection_test.cpp
+  compare_with_hw.cpp
   m65_debugger_test.cpp
   memory_test.cpp
   mock_mega65.cpp

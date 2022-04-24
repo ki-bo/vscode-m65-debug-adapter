@@ -1,5 +1,7 @@
 #include "c64_debugger_data.h"
 
+#include <filesystem>
+
 namespace m65dap {
 
 C64DebuggerData::C64DebuggerData(const std::filesystem::path& dbg_file)
@@ -39,7 +41,10 @@ auto C64DebuggerData::get_file(int idx) const -> std::string { return files_.at(
 auto C64DebuggerData::get_file_index(const std::filesystem::path& src_path) const -> int
 {
   for (auto it = files_.begin(); it != files_.end(); ++it) {
-    if (src_path == it->second) return it->first;
+    std::filesystem::path current_path{it->second};
+    if (std::filesystem::exists(current_path) && std::filesystem::equivalent(src_path, current_path)) {
+      return it->first;
+    }
   }
 
   return -1;

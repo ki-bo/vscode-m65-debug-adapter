@@ -45,7 +45,7 @@ TEST_F(Mega65Fixture, LoadDataOneShot)
   auto line = conn.read_line();
   EXPECT_FALSE(line.second);
   EXPECT_EQ(line.first, "l2001 2201");
-  ASSERT_EQ(conn.read(1), ".");
+  ASSERT_EQ(conn.read(3), "\r\n.");
 
   cmd = fmt::format("M{:X}\n", load_address);
   conn.write(cmd);
@@ -81,7 +81,7 @@ TEST_F(Mega65Fixture, LoadDataIncludingNextCmd)
   auto line = conn.read_line();
   EXPECT_FALSE(line.second);
   EXPECT_EQ(line.first, "l2001 21FB");
-  ASSERT_EQ(conn.read(1), ".");
+  ASSERT_EQ(conn.read(3), "\r\n.");
 
   line = conn.read_line();
   EXPECT_FALSE(line.second);

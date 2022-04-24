@@ -10,6 +10,7 @@ class MockMega65 : public Connection {
   std::string output_buffer_;
   std::vector<uint8_t> memory_;
   bool trace_mode_{false};
+  bool breakpoint_set_{false};
   int load_addr_{0};
   int load_remaining_bytes_{0};
 
@@ -28,6 +29,7 @@ class MockMega65 : public Connection {
   auto parse_trace_cmd(std::string_view line) -> bool;
   auto parse_reset_cmd(std::string_view line) -> bool;
   auto parse_load_cmd(std::string_view line) -> bool;
+  auto parse_break_cmd(std::string_view line) -> bool;
 };
 
 }  // namespace m65dap::test::mock

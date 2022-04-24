@@ -23,4 +23,11 @@ TEST(DebuggerSuite, CreateAndDestroyDebugger)
 
 TEST_F(DebuggerFixture, SetTarget) { debugger.set_target("data/test.prg"); }
 
+TEST_F(DebuggerFixture, SetBreakpoint)
+{
+  debugger.set_target("data/test.prg");
+  std::filesystem::path src_path{"data/test_main.asm"};
+  debugger.set_breakpoint(src_path, 25);
+}
+
 }  // namespace m65dap::test

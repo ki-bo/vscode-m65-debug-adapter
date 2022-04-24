@@ -12,7 +12,7 @@
 
 #include "m65_dap_session.h"
 
-int main()
+int main(int argc, const char* argv[])
 {
 #ifdef _WIN32
   // Set binary mode for stdin and stdout, prevents eol conversion logic
@@ -20,16 +20,19 @@ int main()
   _setmode(_fileno(stdout), _O_BINARY);
 #endif
 
+  std::filesystem::path log_path;
+
   // Wait for debugger to attach
-#ifndef NDEBUG
+#ifndef _NDEBUG
+  log_path = std::filesystem::path(std::filesystem::temp_directory_path() / "daplog.txt");
 #ifdef _POSIX_VERSION
   raise(SIGSTOP);
-  m65dap::M65DapSession session("/tmp/daplog.txt");
 #else
   while (!::IsDebuggerPresent()) ::Sleep(100);
-  m65dap::M65DapSession session;
 #endif
 #endif
+
+  m65dap::M65DapSession session(log_path);
 
   session.run();
 

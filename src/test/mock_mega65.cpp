@@ -42,6 +42,9 @@ void MockMega65::write(std::span<const char> buffer)
   if (parse_load_cmd(input_str)) {
     return;
   }
+  if (parse_break_cmd(input_str)) {
+    return;
+  }
 }
 
 auto MockMega65::read_line(int timeout_ms) -> std::pair<std::string, bool>
@@ -95,7 +98,7 @@ auto MockMega65::process_load_bytes(std::span<const char> buffer) -> std::span<c
   std::copy_n(buffer.begin(), load_remaining_bytes_, &memory_.at(load_addr_));
   auto remaining_buffer{buffer.subspan(load_remaining_bytes_)};
   load_remaining_bytes_ = 0;
-  output_buffer_.append(".");
+  output_buffer_.append(eol_str).append(".");
   return remaining_buffer;
 }
 
@@ -108,7 +111,12 @@ auto MockMega65::parse_help_cmd(std::string_view line) -> bool
   }
 
   output_buffer_.append(line).append(eol_str);
-  output_buffer_.append("MEGA65 Serial Monitor").append(eol_str).append(".");
+  output_buffer_.append("MEGA65 Serial Monitor")
+      .append(eol_str)
+      .append("build GIT: development,20220305.00,ee4f29d")
+      .append(eol_str)
+      .append(eol_str)
+      .append(".");
   return true;
 }
 
@@ -163,13 +171,15 @@ auto MockMega65::parse_reset_cmd(std::string_view line) -> bool
   }
 
   output_buffer_.append(line).append(eol_str);
-  output_buffer_.append("@MEGA65 Serial Monitor").append(eol_str).append(".");
+  output_buffer_.append(
+      "@\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\nMEGA65 Serial "
+      "Monitor\r\nbuild GIT: development,20220305.00,ee4f29d\r\n\r\n.");
   return true;
 }
 
 auto MockMega65::parse_load_cmd(std::string_view line) -> bool
 {
-  static const std::regex r(R"(^\s*[l]\s*([0-9a-fA-F]{1,4})\s+([0-9a-fA-F]{1,4})\s*$)");
+  static const std::regex r(R"(^\s*l\s*([0-9a-fA-F]{1,4})\s+([0-9a-fA-F]{1,4})\s*$)");
 
   std::cmatch match;
   if (!regex_search(line, match, r)) {
@@ -186,8 +196,22 @@ auto MockMega65::parse_load_cmd(std::string_view line) -> bool
   }
   output_buffer_.append(line).append(eol_str);
   if (load_remaining_bytes_ == 0) {
-    output_buffer_.append(".");
+    output_buffer_.append(eol_str).append(".");
   }
+  return true;
+}
+
+auto MockMega65::parse_break_cmd(std::string_view line) -> bool
+{
+  static const std::regex r(R"(^\s*b\s*([0-9a-fA-F]{1,4})\s*$)");
+
+  std::cmatch match;
+  if (!regex_search(line, match, r)) {
+    return false;
+  }
+
+  output_buffer_.append(line).append(eol_str).append(eol_str).append(".");
+  breakpoint_set_ = true;
   return true;
 }
 
