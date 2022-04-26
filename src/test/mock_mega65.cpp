@@ -45,6 +45,9 @@ void MockMega65::write(std::span<const char> buffer)
   if (parse_break_cmd(input_str)) {
     return;
   }
+  if (parse_store_cmd(input_str)) {
+    return;
+  }
 }
 
 auto MockMega65::read_line(int timeout_ms) -> std::pair<std::string, bool>
@@ -212,6 +215,27 @@ auto MockMega65::parse_break_cmd(std::string_view line) -> bool
 
   output_buffer_.append(line).append(eol_str).append(eol_str).append(".");
   breakpoint_set_ = true;
+  return true;
+}
+
+auto MockMega65::parse_store_cmd(std::string_view line) -> bool
+{
+  static const std::regex r(R"(^\s*s\s*([0-9a-fA-F]{1,4})((\s+[0-9a-fA-F]{1,2})+)\s*$)");
+
+  std::cmatch match;
+  if (!regex_search(line, match, r)) {
+    return false;
+  }
+
+  output_buffer_.append(line).append(eol_str).append(eol_str).append(".");
+
+  if (match[2].matched && match[2].str() == " 52 55 4E 0D") {
+    // RUN command detected
+    if (breakpoint_set_) {
+      output_buffer_.append("!").append(eol_str).append(".");
+    }
+  }
+
   return true;
 }
 

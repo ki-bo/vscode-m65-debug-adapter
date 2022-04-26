@@ -30,6 +30,7 @@ TEST_F(TwoConnectionsFixture, Breakpoint)
 {
   debugger->set_target("data/test.prg");
   debugger->set_breakpoint("data/test_main.asm", 25);
+  debugger->run_target();
 }
 
 }  // namespace m65dap::test

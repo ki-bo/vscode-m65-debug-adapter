@@ -30,6 +30,7 @@ class MockMega65 : public Connection {
   auto parse_reset_cmd(std::string_view line) -> bool;
   auto parse_load_cmd(std::string_view line) -> bool;
   auto parse_break_cmd(std::string_view line) -> bool;
+  auto parse_store_cmd(std::string_view line) -> bool;
 };
 
 }  // namespace m65dap::test::mock
