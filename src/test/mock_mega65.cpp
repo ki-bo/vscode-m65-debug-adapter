@@ -4,7 +4,7 @@ namespace {
 
 const std::string eol_str{"\r\n"};
 
-}
+}  // namespace
 namespace m65dap::test::mock {
 
 MockMega65::MockMega65() : memory_(384 * 1024) {}
@@ -48,6 +48,9 @@ void MockMega65::write(std::span<const char> buffer)
   if (parse_store_cmd(input_str)) {
     return;
   }
+  if (parse_registers_cmd(input_str)) {
+    return;
+  }
 }
 
 auto MockMega65::read_line(int timeout_ms) -> std::pair<std::string, bool>
@@ -85,6 +88,8 @@ auto MockMega65::read(int bytes_to_read, int timeout_ms) -> std::string
 
 void MockMega65::flush_rx_buffers() { output_buffer_.clear(); }
 
+void MockMega65::append_prompt() { output_buffer_.append(eol_str).append("."); }
+
 auto MockMega65::process_load_bytes(std::span<const char> buffer) -> std::span<const char>
 {
   if (load_remaining_bytes_ <= 0) {
@@ -101,7 +106,7 @@ auto MockMega65::process_load_bytes(std::span<const char> buffer) -> std::span<c
   std::copy_n(buffer.begin(), load_remaining_bytes_, &memory_.at(load_addr_));
   auto remaining_buffer{buffer.subspan(load_remaining_bytes_)};
   load_remaining_bytes_ = 0;
-  output_buffer_.append(eol_str).append(".");
+  append_prompt();
   return remaining_buffer;
 }
 
@@ -117,9 +122,8 @@ auto MockMega65::parse_help_cmd(std::string_view line) -> bool
   output_buffer_.append("MEGA65 Serial Monitor")
       .append(eol_str)
       .append("build GIT: development,20220305.00,ee4f29d")
-      .append(eol_str)
-      .append(eol_str)
-      .append(".");
+      .append(eol_str);
+  append_prompt();
   return true;
 }
 
@@ -135,7 +139,7 @@ auto MockMega65::parse_memory_cmd(std::string_view line) -> bool
   const auto& cmd_match{match[1]};
   const auto& address_match{match[2]};
   int address = str_to_int(address_match.str(), 16);
-  int num_lines = *cmd_match.first == 'm' ? 1 : 32;
+  int num_lines = *cmd_match.first == 'm' ? 1 : 16;
   throw_if<std::out_of_range>(
       address + num_lines * 16 >= memory_.size(),
       fmt::format("Memory request at address {} with size {} out of range", address, num_lines * 16));
@@ -146,7 +150,7 @@ auto MockMega65::parse_memory_cmd(std::string_view line) -> bool
     output_buffer_.append(fmt::format(":{:08X}:{:02X}{}", address, fmt::join(mem_range, ""), eol_str));
     address += 16;
   }
-  output_buffer_.append(eol_str).append(".");
+  append_prompt();
   return true;
 }
 
@@ -161,7 +165,8 @@ auto MockMega65::parse_trace_cmd(std::string_view line) -> bool
 
   const auto& param{match[1]};
   trace_mode_ = *param.first == '1';
-  output_buffer_.append(line).append(eol_str).append(".");
+  output_buffer_.append(line).append(eol_str);
+  append_prompt();
   return true;
 }
 
@@ -176,7 +181,8 @@ auto MockMega65::parse_reset_cmd(std::string_view line) -> bool
   output_buffer_.append(line).append(eol_str);
   output_buffer_.append(
       "@\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\nMEGA65 Serial "
-      "Monitor\r\nbuild GIT: development,20220305.00,ee4f29d\r\n\r\n.");
+      "Monitor\r\nbuild GIT: development,20220305.00,ee4f29d\r\n");
+  append_prompt();
   return true;
 }
 
@@ -199,7 +205,7 @@ auto MockMega65::parse_load_cmd(std::string_view line) -> bool
   }
   output_buffer_.append(line).append(eol_str);
   if (load_remaining_bytes_ == 0) {
-    output_buffer_.append(eol_str).append(".");
+    append_prompt();
   }
   return true;
 }
@@ -213,7 +219,8 @@ auto MockMega65::parse_break_cmd(std::string_view line) -> bool
     return false;
   }
 
-  output_buffer_.append(line).append(eol_str).append(eol_str).append(".");
+  output_buffer_.append(line).append(eol_str);
+  append_prompt();
   breakpoint_set_ = true;
   return true;
 }
@@ -227,15 +234,50 @@ auto MockMega65::parse_store_cmd(std::string_view line) -> bool
     return false;
   }
 
-  output_buffer_.append(line).append(eol_str).append(eol_str).append(".");
+  output_buffer_.append(line).append(eol_str);
+  append_prompt();
 
-  if (match[2].matched && match[2].str() == " 52 55 4E 0D") {
-    // RUN command detected
+  if (line == "sD0 4") {
+    // assuming RUN cmd
+    running_ = true;
     if (breakpoint_set_) {
-      output_buffer_.append("!").append(eol_str).append(".");
+      output_buffer_.append("!")
+          .append(eol_str)
+          .append("PC   A  X  Y  Z  B  SP   MAPH MAPL LAST-OP In     P  P-FLAGS   RGP uS IO ws h RECA8LHC")
+          .append(eol_str)
+          .append("2058 12 FF 00 00 00 01FF 0000 0000 A912    00     21 ..E....C ...P 15 -  00 - .....l.c")
+          .append(eol_str)
+          .append(",07772058  85 02     STA   $02")
+          .append(eol_str);
+      append_prompt();
     }
   }
 
+  return true;
+}
+
+auto MockMega65::parse_registers_cmd(std::string_view line) -> bool
+{
+  if (line != "r") {
+    return false;
+  }
+
+  output_buffer_.append(line).append(eol_str);
+  output_buffer_.append(eol_str)
+      .append("PC   A  X  Y  Z  B  SP   MAPH MAPL LAST-OP In     P  P-FLAGS   RGP uS IO ws h RECA8LHC")
+      .append(eol_str);
+
+  switch (current_reg_out_++) {
+    case 0:
+      output_buffer_.append("2058 12 FF 00 00 00 01FF 0000 0000 A912    00     21 ..E....C ...P 15 -  00 - .....l.c")
+          .append(eol_str)
+          .append(",07772058  85 02     STA   $02");
+      break;
+    default:
+      throw std::logic_error("Unable to provide register command output");
+  }
+  output_buffer_.append(eol_str);
+  append_prompt();
   return true;
 }
 

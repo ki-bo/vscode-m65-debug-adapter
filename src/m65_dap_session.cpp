@@ -1,7 +1,5 @@
 #include "m65_dap_session.h"
 
-#include "dap_logger.h"
-
 using namespace std::chrono_literals;
 
 namespace dap {
@@ -44,10 +42,8 @@ namespace m65dap {
 M65DapSession::M65DapSession(const std::filesystem::path& log_file_path) : session_(dap::Session::create())
 {
   if (!log_file_path.empty()) {
-    DapLogger::instance().open_file(log_file_path);
+    log_file_ = dap::file(from_u8string(log_file_path.u8string()).c_str());
   }
-
-  DapLogger::instance().register_session(session_.get());
 
   register_error_handler();
   register_request_handlers();
@@ -58,9 +54,8 @@ void M65DapSession::run()
   std::shared_ptr<dap::Reader> in = dap::file(stdin, false);
   std::shared_ptr<dap::Writer> out = dap::file(stdout, false);
 
-  auto log_file = DapLogger::instance().get_file();
-  if (log_file) {
-    session_->bind(spy(in, log_file), spy(out, log_file));
+  if (log_file_) {
+    session_->bind(spy(in, log_file_), spy(out, log_file_));
   }
   else {
     session_->bind(in, out);
@@ -89,10 +84,20 @@ void M65DapSession::handle_debugger_stopped(M65Debugger::StoppedReason reason)
   session_->send(event);
 }
 
+void M65DapSession::debug_out(std::string_view msg)
+{
+  dap::OutputEvent event;
+  event.output = msg;
+  session_->send(event);
+}
+
 void M65DapSession::register_error_handler()
 {
   auto errorHandler = [&](const char* msg) {
-    DapLogger::write_log_file(fmt::format("dap::Session error: {}\n", msg));
+    if (log_file_) {
+      auto str{fmt::format("dap::Session error: {}\n", msg)};
+      log_file_->write(str.data(), str.length());
+    }
     exit_promise_.set_value();
   };
 
@@ -147,7 +152,8 @@ void M65DapSession::register_request_handlers()
         req.resetAfterDisconnect.has_value() ? req.resetAfterDisconnect.value() : dap::boolean(true);
 
     try {
-      debugger_ = std::make_unique<M65Debugger>(req.serialPort.value(), this, reset_before_run, reset_after_disconnect);
+      debugger_ =
+          std::make_unique<M65Debugger>(req.serialPort.value(), this, this, reset_before_run, reset_after_disconnect);
     }
     catch (const std::exception& e) {
       return dap::Error(fmt::format("Can't open connection to '{}'\n{}", req.serialPort.value(), e.what()));

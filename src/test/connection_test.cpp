@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "mock_mega65.h"
+#include "mock_mega65_fixture.h"
 #include "test_common.h"
 
 namespace m65dap::test {

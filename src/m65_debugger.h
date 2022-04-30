@@ -2,6 +2,7 @@
 
 #include "c64_debugger_data.h"
 #include "connection.h"
+#include "logger.h"
 #include "memory_cache.h"
 #include "opcodes.h"
 
@@ -74,6 +75,7 @@ class M65Debugger {
   bool last_line_was_empty_{false};
 
   EventHandlerInterface* event_handler_{nullptr};
+  LoggerInterface* logger_{nullptr};
   MemoryCache memory_cache_;
   std::unique_ptr<Connection> conn_;
   std::thread main_loop_thread_;
@@ -91,11 +93,13 @@ class M65Debugger {
  public:
   M65Debugger(std::string_view serial_port_device,
               EventHandlerInterface* event_handler,
+              LoggerInterface* logger = nullptr,
               bool reset_on_run = false,
               bool reset_on_disconnect = true);
 
   M65Debugger(std::unique_ptr<Connection> connection,
               EventHandlerInterface* event_handler,
+              LoggerInterface* logger = nullptr,
               bool reset_on_run = false,
               bool reset_on_disconnect = true);
 
@@ -133,6 +137,7 @@ class M65Debugger {
   }
 
   auto read_line(int timeout_ms = 1000) -> std::pair<std::string, bool>;
+  void write(std::span<const char> buffer);
   void flush_rx_buffers();
 
   void sync_connection();

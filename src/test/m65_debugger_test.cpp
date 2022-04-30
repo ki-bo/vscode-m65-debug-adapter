@@ -27,7 +27,7 @@ TEST_F(DebuggerFixture, SetBreakpoint)
 {
   debugger.set_target("data/test.prg");
   std::filesystem::path src_path{"data/test_main.asm"};
-  debugger.set_breakpoint(src_path, 25);
+  debugger.set_breakpoint(src_path, 79);
 }
 
 }  // namespace m65dap::test

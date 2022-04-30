@@ -1,7 +1,5 @@
 #pragma once
 
-#include <gtest/gtest.h>
-
 #include "connection.h"
 
 namespace m65dap::test::mock {
@@ -9,10 +7,12 @@ namespace m65dap::test::mock {
 class MockMega65 : public Connection {
   std::string output_buffer_;
   std::vector<uint8_t> memory_;
+  bool running_{false};
   bool trace_mode_{false};
   bool breakpoint_set_{false};
   int load_addr_{0};
   int load_remaining_bytes_{0};
+  int current_reg_out_{0};
 
  public:
   MockMega65();
@@ -23,6 +23,7 @@ class MockMega65 : public Connection {
   void flush_rx_buffers();
 
  private:
+  void append_prompt();
   auto process_load_bytes(std::span<const char> buffer) -> std::span<const char>;
   auto parse_help_cmd(std::string_view line) -> bool;
   auto parse_memory_cmd(std::string_view line) -> bool;
@@ -31,15 +32,7 @@ class MockMega65 : public Connection {
   auto parse_load_cmd(std::string_view line) -> bool;
   auto parse_break_cmd(std::string_view line) -> bool;
   auto parse_store_cmd(std::string_view line) -> bool;
+  auto parse_registers_cmd(std::string_view line) -> bool;
 };
 
 }  // namespace m65dap::test::mock
-
-namespace m65dap::test {
-
-struct Mega65Fixture : public ::testing::Test {
- protected:
-  mock::MockMega65 conn;
-};
-
-}  // namespace m65dap::test

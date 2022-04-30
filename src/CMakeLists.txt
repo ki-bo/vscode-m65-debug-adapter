@@ -3,10 +3,10 @@ add_executable(${target}
     c64_debugger_data.cpp
     c64_debugger_data.h
     connection.h
-    dap_logger.h
-    dap_logger.cpp
     duration.h
     exception.h
+    logger.cpp
+    logger.h
     m65_dap_session.cpp
     m65_dap_session.h
     m65_debugger.cpp

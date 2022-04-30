@@ -16,6 +16,12 @@ inline auto regex_search(std::string_view text, const std::regex& r) -> bool
   return std::regex_search(begin, end, r);
 }
 
+inline auto is_ascii(std::span<const char> buffer) -> bool
+{
+  return std::find_if(buffer.begin(), buffer.end(), [](const char c) { return static_cast<int>(c) <= 0; }) ==
+         buffer.end();
+}
+
 std::vector<std::string> split(const std::string&, char delim);
 
 template <typename ExceptionType>

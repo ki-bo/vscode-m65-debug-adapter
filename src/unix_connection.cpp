@@ -4,7 +4,6 @@
 
 #include <unistd.h>
 
-#include "dap_logger.h"
 #include "duration.h"
 
 using namespace std::chrono_literals;
@@ -14,20 +13,6 @@ namespace m65dap {
 void UnixConnection::write(std::span<const char> buffer)
 {
   int written = 0;
-
-  bool is_ascii =
-      std::find_if(buffer.begin(), buffer.end(), [](const char c) { return static_cast<int>(c) <= 0; }) == buffer.end();
-
-  if (is_ascii) {
-    std::string debug_str(buffer.data(), buffer.size());
-    replace_all(debug_str, "\n", "\\n");
-    replace_all(debug_str, "\r", "\\r");
-    DapLogger::debug_out(fmt::format("-> \"{}\"\n", debug_str));
-  }
-  else {
-    DapLogger::debug_out(fmt::format("-> binary data (size {0:}/${0:X} bytes)\n", buffer.size_bytes()));
-  }
-
   while (written < buffer.size()) {
     auto n = ::write(fd_, buffer.data() + written, buffer.size() - written);
     if (n < 0 && errno != EAGAIN) {

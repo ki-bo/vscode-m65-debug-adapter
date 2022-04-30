@@ -1,6 +1,5 @@
 #include "m65_debugger.h"
 
-#include "dap_logger.h"
 #include "duration.h"
 #include "serial_connection.h"
 #include "unix_domain_socket_connection.h"
@@ -12,11 +11,16 @@ namespace m65dap {
 
 M65Debugger::M65Debugger(std::string_view serial_port_device,
                          EventHandlerInterface* event_handler,
+                         LoggerInterface* logger,
                          bool reset_on_run,
                          bool reset_on_disconnect) :
     event_handler_(event_handler),
-    memory_cache_(this), reset_on_disconnect_(reset_on_disconnect)
+    logger_(logger), memory_cache_(this), reset_on_disconnect_(reset_on_disconnect)
 {
+  if (logger_ == nullptr) {
+    logger_ = NullLogger::instance();
+  }
+
 #ifdef _POSIX_VERSION
   if (serial_port_device.starts_with("unix#")) {
     std::string_view socket_path = serial_port_device.substr(5);
@@ -38,11 +42,16 @@ M65Debugger::M65Debugger(std::string_view serial_port_device,
 
 M65Debugger::M65Debugger(std::unique_ptr<Connection> connection,
                          EventHandlerInterface* event_handler,
+                         LoggerInterface* logger,
                          bool reset_on_run,
                          bool reset_on_disconnect) :
     conn_(std::move(connection)),
-    event_handler_(event_handler), memory_cache_(this), reset_on_disconnect_(reset_on_disconnect)
+    logger_(logger), event_handler_(event_handler), memory_cache_(this), reset_on_disconnect_(reset_on_disconnect)
 {
+  if (logger_ == nullptr) {
+    logger_ = NullLogger::instance();
+  }
+
   initialize(reset_on_run);
 }
 
@@ -160,6 +169,24 @@ auto M65Debugger::get_current_source_position() const -> SourcePosition
     result.line = entry->line1;
   }
   return result;
+}
+
+void M65Debugger::write(std::span<const char> buffer)
+{
+  bool is_ascii =
+      std::find_if(buffer.begin(), buffer.end(), [](const char c) { return static_cast<int>(c) <= 0; }) == buffer.end();
+
+  if (is_ascii) {
+    std::string debug_str(buffer.data(), buffer.size());
+    replace_all(debug_str, "\n", "\\n");
+    replace_all(debug_str, "\r", "\\r");
+    logger_->debug_out(fmt::format("-> \"{}\"\n", debug_str));
+  }
+  else {
+    logger_->debug_out(fmt::format("-> binary data (size {0:}/${0:X} bytes)\n", buffer.size_bytes()));
+  }
+
+  conn_->write(buffer);
 }
 
 auto M65Debugger::evaluate_expression(std::string_view expression, bool format_as_hex) -> EvaluateResult
@@ -373,13 +400,13 @@ auto M65Debugger::read_line(int timeout_ms) -> std::pair<std::string, bool>
     if (!buffer_.empty()) {
       if (buffer_.front() == '.') {
         // Prompt found, no eol will follow, treat it as line
-        DapLogger::debug_out("Prompt (.) found\n");
+        logger_->debug_out("Prompt (.) found\n");
         buffer_.erase(0);
         return {".", false};
       }
       if (buffer_.front() == '!') {
         // Breakpoint found, no eol will follow, treat it as line
-        DapLogger::debug_out("Breakpoint trigger (!) found\n");
+        logger_->debug_out("Breakpoint trigger (!) found\n");
         buffer_.erase(0);
         return {"!", false};
       }
@@ -396,7 +423,7 @@ auto M65Debugger::read_line(int timeout_ms) -> std::pair<std::string, bool>
   }
 
   if (buffer_.front() == '.') {
-    DapLogger::debug_out("Prompt (.) found\n");
+    logger_->debug_out("Prompt (.) found\n");
     buffer_.erase(0);
     return {".", false};
   }
@@ -411,7 +438,7 @@ auto M65Debugger::read_line(int timeout_ms) -> std::pair<std::string, bool>
   auto dbg_str = line;
   replace_all(dbg_str, "\n", "\\n");
   replace_all(dbg_str, "\r", "\\r");
-  DapLogger::debug_out(fmt::format("<- \"{}\"\n", dbg_str));
+  logger_->debug_out(fmt::format("<- \"{}\"\n", dbg_str));
   return {line, false};
 }
 
@@ -421,7 +448,7 @@ void M65Debugger::flush_rx_buffers()
   auto dummy_str = conn_->read(65536, 100);
   if (!dummy_str.empty()) {
     buffer_.clear();
-    DapLogger::debug_out(fmt::format("Flushing rx buffer ({0:}/${0:X} bytes)\n", dummy_str.size()));
+    logger_->debug_out(fmt::format("Flushing rx buffer ({0:}/${0:X} bytes)\n", dummy_str.size()));
   }
 }
 
@@ -436,7 +463,7 @@ void M65Debugger::sync_connection()
     auto reply = read_line(500);
     if (reply.second) {
       // timeout
-      DapLogger::debug_out(fmt::format("sync_connection() timeout, retries={}\n", retries));
+      logger_->debug_out(fmt::format("sync_connection() timeout, retries={}\n", retries));
     }
     else if (reply.first == cmd.substr(0, cmd.length() - 1)) {
       std::vector<std::string> lines;
@@ -451,7 +478,7 @@ void M65Debugger::sync_connection()
 
       const std::string ident = is_xemu_ ? "Xemu/MEGA65 Serial Monitor" : "MEGA65 Serial Monitor";
       if (!timeout && lines.front().starts_with(ident)) {
-        DapLogger::debug_out(" === Successfully synced with target debugger ===\n");
+        logger_->debug_out(" === Successfully synced with target debugger ===\n");
         return;
       }
     }
@@ -662,7 +689,7 @@ void M65Debugger::handle_breakpoint(std::vector<std::string>& lines)
     throw std::runtime_error("Unexpected breakpoint trigger response");
   }
 
-  DapLogger::debug_out("Breakpoint triggered\n");
+  logger_->debug_out("Breakpoint triggered\n");
   if (!update_registers(lines) || !is_breakpoint_trigger_valid()) {
     execute_command("t0\n");
     return;
@@ -733,12 +760,12 @@ auto M65Debugger::is_breakpoint_trigger_valid() -> bool
   std::byte cmd_at_breakpoint[5];
   memory_cache_.read(breakpoint_->pc, cmd_at_breakpoint);
 
-  int addr_on_stack{memory_cache_.read_word(current_registers_.sp + 1)};
+  // int addr_on_stack{memory_cache_.read_word(current_registers_.sp + 1)};
 
   const auto& opcode{get_opcode(cmd_at_breakpoint[0])};
   if (opcode.mnemonic == Mnemonic::JSR || opcode.mnemonic == Mnemonic::BSR) {
     auto target_address = calculate_address(to_word(cmd_at_breakpoint + 1), opcode.mode, breakpoint_->pc + 2);
-    DapLogger::debug_out(
+    logger_->debug_out(
         fmt::format("JSR/BSR breakpoint expecting {}, got PC {}\n", target_address, current_registers_.pc));
     return current_registers_.pc == target_address;
   }
