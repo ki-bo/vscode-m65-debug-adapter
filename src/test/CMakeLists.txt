@@ -1,8 +1,8 @@
 set(debugger_sources
   ../c64_debugger_data.cpp
   ../c64_debugger_data.h
-  ../Logger.cpp
-  ../Logger.h
+  ../logger.cpp
+  ../logger.h
   ../m65_debugger.cpp
   ../m65_debugger.h
   ../memory_cache.cpp
@@ -62,3 +62,8 @@ add_executable(compare_hw_and_mock
 target_link_libraries(compare_hw_and_mock PRIVATE ${debugger_libs})
 target_include_directories(compare_hw_and_mock PRIVATE ..)
 target_precompile_headers(compare_hw_and_mock PUBLIC ../pch.h)
+
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/data/test.dbg.in 
+               ${CMAKE_CURRENT_SOURCE_DIR}/data/test.dbg
+               @ONLY
+)

@@ -13,7 +13,8 @@ struct DebuggerFixture : public ::testing::Test, public M65Debugger::EventHandle
 
 TEST(DebuggerSuite, CreateAndDestroyDebugger)
 {
-  class EventHandler : public M65Debugger::EventHandlerInterface {};
+  class EventHandler : public M65Debugger::EventHandlerInterface {
+  };
   EventHandler dummy_handler;
 
   auto mock_mega65{std::make_unique<mock::MockMega65>()};
@@ -25,6 +26,7 @@ TEST_F(DebuggerFixture, SetTarget) { debugger.set_target("data/test.prg"); }
 
 TEST_F(DebuggerFixture, SetBreakpoint)
 {
+  auto cp = std::filesystem::current_path();
   debugger.set_target("data/test.prg");
   std::filesystem::path src_path{"data/test_main.asm"};
   debugger.set_breakpoint(src_path, 79);
