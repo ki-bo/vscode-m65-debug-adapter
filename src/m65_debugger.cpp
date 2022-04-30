@@ -274,13 +274,13 @@ auto M65Debugger::evaluate_expression(std::string_view expression, bool format_a
         break;
       case 2:
         result.result_string.reserve(5 * num_elements);
-        for (int idx{0}; idx < num_elements; ++idx) {
+        for (int idx{0}; idx < num_elements * 2; idx += 2) {
           result.result_string.append(fmt::format("{:02X}{:02X} ", tmp[idx + 1], tmp[idx]));
         }
         break;
       case 4:
         result.result_string.reserve(9 * num_elements);
-        for (int idx{0}; idx < num_elements; ++idx) {
+        for (int idx{0}; idx < num_elements * 4; idx += 4) {
           result.result_string.append(
               fmt::format("{:02X}{:02X}{:02X}{:02X} ", tmp[idx + 3], tmp[idx + 2], tmp[idx + 1], tmp[idx]));
         }
