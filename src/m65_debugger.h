@@ -100,6 +100,7 @@ class M65Debugger {
   M65Debugger(std::unique_ptr<Connection> connection,
               EventHandlerInterface* event_handler,
               LoggerInterface* logger = nullptr,
+              bool is_xemu = false,
               bool reset_on_run = false,
               bool reset_on_disconnect = true);
 

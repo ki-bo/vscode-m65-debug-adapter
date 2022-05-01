@@ -20,11 +20,11 @@ int main(int argc, char* argv[])
     const std::string_view device{argv[1]};
     EventHandler stopped_handler;
 
-    std::unique_ptr<m65dap::Connection> conn{std::make_unique<m65dap::test::ConnectionProxy>(device)};
+    std::unique_ptr<m65dap::test::ConnectionProxy> conn{std::make_unique<m65dap::test::ConnectionProxy>(device)};
     // Flush rx buffer
     conn->read(65536, 100);
-    auto debugger = std::make_unique<m65dap::M65Debugger>(std::move(conn), &stopped_handler,
-                                                          m65dap::StdoutLogger::instance(), true, false);
+    auto debugger = std::make_unique<m65dap::M65Debugger>(
+        std::move(conn), &stopped_handler, m65dap::StdoutLogger::instance(), conn->connected_with_xemu(), true, false);
 
     debugger->set_target("data/test.prg");
     debugger->set_breakpoint("data/test_main.asm", 79);

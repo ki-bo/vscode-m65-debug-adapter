@@ -1,5 +1,7 @@
 #include "connection_proxy.h"
 
+#include "unix_domain_socket_connection.h"
+
 namespace {
 
 auto format_string(std::span<const char> buffer) -> std::string
@@ -16,19 +18,37 @@ auto format_string(std::span<const char> buffer) -> std::string
 }
 }  // namespace
 
-m65dap::test::ConnectionProxy::ConnectionProxy(std::string_view hw_device) : conn_hw_(hw_device) {}
+namespace m65dap::test {
 
-void m65dap::test::ConnectionProxy::write(std::span<const char> buffer)
+ConnectionProxy::ConnectionProxy(std::string_view hw_device)
 {
-  conn_hw_.write(buffer);
-  conn_mock_.write(buffer);
+  if (hw_device.starts_with("unix#")) {
+    std::string_view socket_path = hw_device.substr(5);
+    conn_hw_ = std::make_unique<UnixDomainSocketConnection>(socket_path);
+    is_xemu_ = true;
+  }
+  else {
+#ifdef _POSIX_VERSION
+    conn_hw_ = std::make_unique<UnixSerialConnection>(hw_device);
+#else
+    conn_hw_ = std::make_unique<SerialConnection>(hw_device);
+#endif
+  }
+
+  conn_mock_ = std::make_unique<mock::MockMega65>(is_xemu_);
+}
+
+void ConnectionProxy::write(std::span<const char> buffer)
+{
+  conn_hw_->write(buffer);
+  conn_mock_->write(buffer);
   std::cerr << format_string(buffer);
 }
 
-auto m65dap::test::ConnectionProxy::read(int bytes_to_read, int timeout_ms) -> std::string
+auto ConnectionProxy::read(int bytes_to_read, int timeout_ms) -> std::string
 {
-  auto result_hw = conn_hw_.read(bytes_to_read, timeout_ms);
-  auto result_mock = conn_mock_.read(result_hw.length(), timeout_ms);
+  auto result_hw = conn_hw_->read(bytes_to_read, timeout_ms);
+  auto result_mock = conn_mock_->read(result_hw.length(), timeout_ms);
 
   if (result_hw.empty()) {
     return {};
@@ -44,3 +64,5 @@ auto m65dap::test::ConnectionProxy::read(int bytes_to_read, int timeout_ms) -> s
 
   return result_hw;
 }
+
+}  // namespace m65dap::test

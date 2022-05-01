@@ -43,10 +43,12 @@ M65Debugger::M65Debugger(std::string_view serial_port_device,
 M65Debugger::M65Debugger(std::unique_ptr<Connection> connection,
                          EventHandlerInterface* event_handler,
                          LoggerInterface* logger,
+                         bool is_xemu,
                          bool reset_on_run,
                          bool reset_on_disconnect) :
     conn_(std::move(connection)),
-    logger_(logger), event_handler_(event_handler), memory_cache_(this), reset_on_disconnect_(reset_on_disconnect)
+    logger_(logger), event_handler_(event_handler), memory_cache_(this), is_xemu_(is_xemu),
+    reset_on_disconnect_(reset_on_disconnect)
 {
   if (logger_ == nullptr) {
     logger_ = NullLogger::instance();
@@ -422,10 +424,19 @@ auto M65Debugger::read_line(int timeout_ms) -> std::pair<std::string, bool>
     }
   }
 
-  if (buffer_.front() == '.') {
-    logger_->debug_out("Prompt (.) found\n");
-    buffer_.erase(0);
-    return {".", false};
+  if (is_xemu_) {
+    if (buffer_.starts_with(".\r\n")) {
+      logger_->debug_out("Prompt (.) found (Xemu style)\n");
+      buffer_.erase(0, 3);
+      return {".", false};
+    }
+  }
+  else {
+    if (buffer_.front() == '.') {
+      logger_->debug_out("Prompt (.) found\n");
+      buffer_.erase(0);
+      return {".", false};
+    }
   }
 
   auto line = buffer_.substr(0, pos);
@@ -621,13 +632,13 @@ void M65Debugger::simulate_keypresses(std::string_view keys)
   auto finalize_cmd = [&]() {
     cmd += '\n';
     execute_command(cmd);
-    cmd = fmt::format("s{:X} {:X}\n", 0xd0, count);  // set number of keys in keyboard buffer
+    cmd = fmt::format("sD0 {:X}\n", count);  // set number of keys in keyboard buffer
     execute_command(cmd);
   };
 
   for (auto& key : keys) {
     if (count == 0) {
-      cmd = fmt::format("s{:X}", 0x2b0);  // write bytes to keyboard buffer address
+      cmd = "s2B0";  // write bytes to keyboard buffer address
     }
     cmd += fmt::format(" {:02X}", static_cast<int>(key));
     ++count;

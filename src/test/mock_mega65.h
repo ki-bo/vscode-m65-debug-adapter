@@ -7,6 +7,7 @@ namespace m65dap::test::mock {
 class MockMega65 : public Connection {
   std::string output_buffer_;
   std::vector<uint8_t> memory_;
+  bool is_xemu_{false};
   bool running_{false};
   bool trace_mode_{false};
   bool breakpoint_set_{false};
@@ -15,7 +16,7 @@ class MockMega65 : public Connection {
   int current_reg_out_{0};
 
  public:
-  MockMega65();
+  MockMega65(bool is_xemu = false);
 
   void write(std::span<const char> buffer) override final;
   auto read(int bytes_to_read, int timeout_ms = 1000) -> std::string override final;
