@@ -23,6 +23,7 @@ void MockMega65::write(std::span<const char> buffer)
   throw_if<std::invalid_argument>(it == buffer.end(), "No eol char found");
 
   if (it == buffer.begin()) {
+    next_cmd();
     return;
   }
 
@@ -96,6 +97,18 @@ void MockMega65::append_prompt()
   else {
     output_buffer_.append(eol_str).append(".");
   }
+}
+
+void MockMega65::next_cmd()
+{
+  ++current_reg_out_;
+  output_buffer_.append(eol_str);
+  if (is_xemu_) {
+    append_prompt();
+  }
+  output_buffer_.append(eol_str);
+  output_registers();
+  append_prompt();
 }
 
 auto MockMega65::process_load_bytes(std::span<const char> buffer) -> std::span<const char>
@@ -262,24 +275,12 @@ auto MockMega65::parse_store_cmd(std::string_view line) -> bool
     // assuming RUN cmd
     running_ = true;
     if (breakpoint_set_) {
-      if (is_xemu_) {
-        output_buffer_.append(eol_str)
-            .append("PC   A  X  Y  Z  B  SP   MAPH MAPL LAST-OP     P  P-FLAGS   RGP uS IO")
-            .append(eol_str)
-            .append("2056 00 FF 00 00 00 01FF 0000 0000 9A       A1 00 N-E----C ")
-            .append(eol_str)
-            .append(",07772056")
-            .append(eol_str);
+      if (!is_xemu_) {
+        output_buffer_.append("!");
       }
-      else {
-        output_buffer_.append("!")
-            .append(eol_str)
-            .append("PC   A  X  Y  Z  B  SP   MAPH MAPL LAST-OP In     P  P-FLAGS   RGP uS IO ws h RECA8LHC")
-            .append(eol_str)
-            .append("2058 12 FF 00 00 00 01FF 0000 0000 A912    00     21 ..E....C ...P 15 -  00 - .....l.c")
-            .append(eol_str)
-            .append(",07772058  85 02     STA   $02")
-            .append(eol_str);
+      output_buffer_.append(eol_str);
+      output_registers();
+      if (!is_xemu_) {
         append_prompt();
       }
     }
@@ -296,6 +297,14 @@ auto MockMega65::parse_registers_cmd(std::string_view line) -> bool
 
   output_buffer_.append(line).append(eol_str);
   output_buffer_.append(eol_str);
+  output_registers();
+  append_prompt();
+
+  return true;
+}
+
+void MockMega65::output_registers()
+{
   if (is_xemu_) {
     output_buffer_.append("PC   A  X  Y  Z  B  SP   MAPH MAPL LAST-OP     P  P-FLAGS   RGP uS IO");
   }
@@ -304,7 +313,7 @@ auto MockMega65::parse_registers_cmd(std::string_view line) -> bool
   }
   output_buffer_.append(eol_str);
 
-  switch (current_reg_out_++) {
+  switch (current_reg_out_) {
     case 0:
       if (is_xemu_) {
         output_buffer_.append("2056 00 FF 00 00 00 01FF 0000 0000 9A       A1 00 N-E----C ")
@@ -317,12 +326,22 @@ auto MockMega65::parse_registers_cmd(std::string_view line) -> bool
             .append(",07772058  85 02     STA   $02");
       }
       break;
+    case 1:
+      if (is_xemu_) {
+        output_buffer_.append("205A 12 FF 00 00 00 01FF 0000 0000 85       21 00 --E----C ")
+            .append(eol_str)
+            .append(",0777205A");
+      }
+      else {
+        output_buffer_.append("205A 12 FF 00 00 00 01FF 0000 0000 8502    00     21 ..E....C ...P 15 -  00 - .....l.c")
+            .append(eol_str)
+            .append(",0777205A  A9 34     LDA   #$34");
+      }
+      break;
     default:
       throw std::logic_error("Unable to provide register command output");
   }
   output_buffer_.append(eol_str);
-  append_prompt();
-  return true;
 }
 
 }  // namespace m65dap::test::mock

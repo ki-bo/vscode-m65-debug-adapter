@@ -36,6 +36,9 @@ ConnectionProxy::ConnectionProxy(std::string_view hw_device)
   }
 
   conn_mock_ = std::make_unique<mock::MockMega65>(is_xemu_);
+
+  // Flush rx buffer
+  conn_hw_->read(65536, 100);
 }
 
 void ConnectionProxy::write(std::span<const char> buffer)

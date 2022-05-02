@@ -6,7 +6,12 @@
 
 struct EventHandler : public m65dap::M65Debugger::EventHandlerInterface {
   std::promise<void> stopped_event_promise;
-  void handle_debugger_stopped(m65dap::M65Debugger::StoppedReason) { stopped_event_promise.set_value(); }
+  void handle_debugger_stopped(m65dap::M65Debugger::StoppedReason reason)
+  {
+    if (reason == m65dap::M65Debugger::StoppedReason::Breakpoint) {
+      stopped_event_promise.set_value();
+    }
+  }
 };
 
 int main(int argc, char* argv[])
@@ -21,8 +26,7 @@ int main(int argc, char* argv[])
     EventHandler stopped_handler;
 
     std::unique_ptr<m65dap::test::ConnectionProxy> conn{std::make_unique<m65dap::test::ConnectionProxy>(device)};
-    // Flush rx buffer
-    conn->read(65536, 100);
+
     auto debugger = std::make_unique<m65dap::M65Debugger>(
         std::move(conn), &stopped_handler, m65dap::StdoutLogger::instance(), conn->connected_with_xemu(), true, false);
 
@@ -31,6 +35,7 @@ int main(int argc, char* argv[])
     debugger->run_target();
     stopped_handler.stopped_event_promise.get_future().wait();
     debugger->get_registers();
+    debugger->next();
   }
   catch (const std::exception& e) {
     fmt::print(stderr, "Error: {}\n", e.what());

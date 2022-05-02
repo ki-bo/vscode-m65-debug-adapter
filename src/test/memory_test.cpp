@@ -4,7 +4,7 @@
 
 namespace m65dap::test {
 
-TEST_F(Mega65Fixture, MemoryRead)
+TEST_F(MockMega65Fixture, MemoryRead)
 {
   conn.write("M1000\n");
 
@@ -34,7 +34,7 @@ TEST_F(Mega65Fixture, MemoryRead)
   EXPECT_EQ(line.first, "");
 }
 
-TEST_F(Mega65Fixture, LoadDataOneShot)
+TEST_F(MockMega65Fixture, LoadDataOneShot)
 {
   std::vector<char> data(256);
   std::iota(data.begin(), data.end() - 12, 1);
@@ -67,7 +67,7 @@ TEST_F(Mega65Fixture, LoadDataOneShot)
   EXPECT_EQ(lines[15], ":000020F1:F1F2F3F4000000000000000000000000");
 }
 
-TEST_F(Mega65Fixture, LoadDataIncludingNextCmd)
+TEST_F(MockMega65Fixture, LoadDataIncludingNextCmd)
 {
   int load_address = 0x2001;
   auto mem_cmd = fmt::format("M{:X}\n", load_address);

@@ -300,7 +300,7 @@ void M65Debugger::initialize(bool reset_on_run)
   sync_connection();
   if (reset_on_run && !is_xemu_) {
     reset_target();
-    std::this_thread::sleep_for(2s);
+    std::this_thread::sleep_for(3s);
   }
   else {
     // make sure serial debugger is not stopped

@@ -25,6 +25,7 @@ class MockMega65 : public Connection {
 
  private:
   void append_prompt();
+  void next_cmd();
   auto process_load_bytes(std::span<const char> buffer) -> std::span<const char>;
   auto parse_help_cmd(std::string_view line) -> bool;
   auto parse_memory_cmd(std::string_view line) -> bool;
@@ -34,6 +35,7 @@ class MockMega65 : public Connection {
   auto parse_break_cmd(std::string_view line) -> bool;
   auto parse_store_cmd(std::string_view line) -> bool;
   auto parse_registers_cmd(std::string_view line) -> bool;
+  void output_registers();
 };
 
 }  // namespace m65dap::test::mock

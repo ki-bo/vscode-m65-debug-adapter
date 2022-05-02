@@ -33,6 +33,7 @@ add_executable(m65dap_tests
   mock_mega65.cpp
   mock_mega65.h
   mock_mega65_fixture.h
+  mock_xemu_fixture.h
   opcode_test.cpp
   test_common.cpp
   test_common.h

@@ -6,9 +6,9 @@
 
 namespace m65dap::test {
 
-struct MockMega65Fixture : public ::testing::Test {
+struct MockXemuFixture : public ::testing::Test {
  protected:
-  MockMega65Fixture() : conn(false) {}
+  MockXemuFixture() : conn(true) {}
   mock::MockMega65 conn;
 };
 
