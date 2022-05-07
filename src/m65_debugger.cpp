@@ -391,7 +391,6 @@ void M65Debugger::check_breakpoint_by_pc()
 auto M65Debugger::read_line(int timeout_ms) -> std::pair<std::string, bool>
 {
   std::size_t pos;
-  char tmp[1024];
 
   Duration t;
 
@@ -411,10 +410,13 @@ auto M65Debugger::read_line(int timeout_ms) -> std::pair<std::string, bool>
       }
     }
 
-    auto read_data = conn_->read(1024, timeout_ms);
+    auto read_data = conn_->read(1024, 0);
 
     if (read_data.empty()) {
-      return {{}, true};
+      if (t.elapsed_ms() > timeout_ms) {
+        return {{}, true};
+      }
+      std::this_thread::sleep_for(1ms);
     }
     else {
       buffer_.append(read_data);
