@@ -37,6 +37,9 @@ UnixSerialConnection::UnixSerialConnection(std::string_view port)
   if (ioctl(fd_, IOSSIOSPEED, &speed_apple) == -1) {
     throw std::runtime_error("Failed to set output baud rate using IOSSIOSPEED");
   }
+#else
+  throw_if<std::runtime_error>(cfsetospeed(&tty, B2000000) != 0, "Failed to set baudrate for output");
+  throw_if<std::runtime_error>(cfsetispeed(&tty, B2000000) != 0, "Failed to set baudrate for input");
 #endif
 }
 
