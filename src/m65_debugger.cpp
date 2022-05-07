@@ -175,10 +175,7 @@ auto M65Debugger::get_current_source_position() const -> SourcePosition
 
 void M65Debugger::write(std::span<const char> buffer)
 {
-  bool is_ascii =
-      std::find_if(buffer.begin(), buffer.end(), [](const char c) { return static_cast<int>(c) <= 0; }) == buffer.end();
-
-  if (is_ascii) {
+  if (is_ascii(buffer)) {
     std::string debug_str(buffer.data(), buffer.size());
     replace_all(debug_str, "\n", "\\n");
     replace_all(debug_str, "\r", "\\r");
